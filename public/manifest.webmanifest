@@ -1,0 +1,10 @@
+{
+  "name": "Shahzaib Room",
+  "short_name": "Shahzaib Room",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b12",
+  "theme_color": "#090b12",
+  "description": "Private real-time chat room",
+  "icons": []
+}
