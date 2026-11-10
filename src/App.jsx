@@ -279,8 +279,8 @@ function App() {
   }
   async function installApp() {
     if (installEvt) { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); return; }
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) setToast('iPhone par: Safari mein Share dabao, phir "Add to Home Screen".');
-    else setToast('Browser menu mein "Install app" ya "Add to Home screen" dabao.');
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) setToast('On iPhone: tap Share in Safari, then select "Add to Home Screen".');
+    else setToast('Open your browser menu and select "Install app" or "Add to Home screen".');
   }
 
   // Names we can mention = people who have spoken in the room (the members list itself stays private).
