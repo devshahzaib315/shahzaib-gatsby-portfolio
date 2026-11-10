@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap');
+500;600;700;800&family=DM+Mono:wght@500&display=swap');
 
 /* iPhone font: -apple-system resolves to San Francisco on Apple devices; Inter is the closest match elsewhere. */
 :root {
@@ -77,7 +77,7 @@ button, input { font: inherit; }
   background: radial-gradient(circle at 30% 25%, rgba(255,255,255,.65), rgba(34,211,238,.55) 38%, rgba(139,92,246,.7));
   box-shadow: inset 0 2px 6px rgba(255,255,255,.6), 0 12px 34px rgba(99,102,241,.5); animation: bob 5s ease-in-out infinite; }
 @keyframes bob { 0%,100% { transform: translateY(0) scale(1); border-radius: 50%; } 50% { transform: translateY(-5px) scale(1.04); border-radius: 46% 54% 52% 48%; } }
-.eyebrow { display: flex; align-items: center; gap: 8px; font: 500 10px 'DM Mono', monospace; letter-spacing: 1.6px; color: var(--muted); }
+.eyebrow { display: flex; align-items: center; gap: 8px; font: 500 10px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.6px; color: var(--muted); }
 .eyebrow span, .live-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 12px var(--aqua); display: inline-block; }
 .gate-card h1 { font-weight: 800; font-size: clamp(30px, 8vw, 38px); line-height: 1.1; letter-spacing: -1.4px; margin: 14px 0 12px; color: #fff; }
 .gate-card h1 em { font-style: normal; background: linear-gradient(90deg, var(--aqua), #a5b4fc 50%, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -88,7 +88,7 @@ button, input { font: inherit; }
 .gate-form input:focus, .code-input:focus-within, .admin-modal input:focus { border-color: rgba(34,211,238,.7); box-shadow: 0 0 0 4px rgba(34,211,238,.16); }
 .gate-form input::placeholder, .admin-modal input::placeholder, .composer input::placeholder { color: #7683aa; }
 .code-input { display: flex; align-items: center; gap: 10px; color: var(--aqua); }
-.code-input input { height: 100%; padding: 0; border: 0; background: none; box-shadow: none !important; flex: 1; min-width: 0; font: 500 15px 'DM Mono', monospace; letter-spacing: 1.5px; }
+.code-input input { height: 100%; padding: 0; border: 0; background: none; box-shadow: none !important; flex: 1; min-width: 0; font: 500 15px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.5px; }
 .primary { height: 52px; border: 1px solid rgba(255,255,255,.35); border-radius: 18px; color: #04101f; font-weight: 700; font-size: 14px; letter-spacing: .6px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-top: 16px; width: 100%;
   background: linear-gradient(135deg, #7ee8fa, #a5b4fc 60%, #c4b5fd); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 12px 30px rgba(99,102,241,.4); transition: transform .15s, filter .15s; }
 .primary:hover { filter: brightness(1.07); transform: translateY(-1px); }
@@ -108,7 +108,7 @@ button, input { font: inherit; }
 .chat-head { flex: none; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-bottom: 1px solid rgba(255,255,255,.1); }
 .chat-head h2 { margin: 0; font-weight: 700; font-size: 17px; letter-spacing: -.3px; color: #fff; }
 .chat-head small { color: var(--muted); font-size: 12px; }
-.live-pill { display: inline-flex; align-items: center; gap: 7px; font: 500 10px 'DM Mono', monospace; letter-spacing: 1.2px; color: #a7f3d0; background: rgba(110,231,183,.12); border: 1px solid rgba(110,231,183,.28); padding: 6px 10px; border-radius: 999px; }
+.live-pill { display: inline-flex; align-items: center; gap: 7px; font: 500 10px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.2px; color: #a7f3d0; background: rgba(110,231,183,.12); border: 1px solid rgba(110,231,183,.28); padding: 6px 10px; border-radius: 999px; }
 .live-pill i { background: #34d399; box-shadow: 0 0 12px #34d399; animation: pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 8px; display: flex; flex-direction: column; gap: 10px; }
@@ -167,8 +167,8 @@ button, input { font: inherit; }
 .close { position: absolute; right: 16px; top: 10px; background: none; border: 0; color: var(--muted); font-size: 28px; cursor: pointer; z-index: 2; }
 .close:hover { color: #fff; }
 .generated { margin-top: 16px; padding: 14px; border: 1px solid rgba(110,231,183,.4); background: rgba(110,231,183,.08); border-radius: 18px; display: flex; flex-direction: column; gap: 9px; }
-.generated small { font: 500 9px 'DM Mono', monospace; color: var(--ok); letter-spacing: 1.2px; }
-.generated strong { font: 500 18px 'DM Mono', monospace; letter-spacing: 1.5px; color: #fff; word-break: break-all; }
+.generated small { font: 500 9px ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--ok); letter-spacing: 1.2px; }
+.generated strong { font: 500 18px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.5px; color: #fff; word-break: break-all; }
 .generated button, .secondary { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; color: #e6ecff; padding: 11px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; }
 .generated button:hover, .secondary:hover { background: rgba(255,255,255,.18); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
@@ -179,7 +179,7 @@ button, input { font: inherit; }
 .member-line { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; color: #e6ecff; }
 .code-history { max-height: 150px; overflow-y: auto; margin-top: 12px; }
 .code-history div { display: flex; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 12px; }
-.code-history span { color: var(--ok); font: 500 10px 'DM Mono', monospace; }
+.code-history span { color: var(--ok); font: 500 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 /* ---------- toast + setup ---------- */
 .toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; padding: 13px 20px; border-radius: 18px; font-size: 14px; font-weight: 500; max-width: min(92vw, 420px); text-align: center; background: linear-gradient(135deg, rgba(26,32,74,.88), rgba(14,18,46,.88)); animation: rise .25s ease both; }
@@ -189,7 +189,7 @@ button, input { font: inherit; }
 .setup-card h1 { font-weight: 800; font-size: 28px; color: #fff; }
 .setup-card h2 { font-weight: 600; font-size: 16px; }
 .setup-card p { font-size: 14px; line-height: 1.7; color: var(--muted); }
-.setup-card code { display: block; padding: 14px; background: rgba(4,8,28,.6); border-radius: 12px; color: var(--aqua); font: 13px 'DM Mono', monospace; line-height: 2; }
+.setup-card code { display: block; padding: 14px; background: rgba(4,8,28,.6); border-radius: 12px; color: var(--aqua); font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 2; }
 
 /* ---------- phones ---------- */
 @media (max-width: 640px) {
@@ -257,4 +257,18 @@ html.kb-open .chat-wrap { padding-bottom: 8px; }
   html.kb-open .topbar { display: none; }
   html.kb-open .chat-head { height: 50px; }
   html.kb-open .composer-wrap { padding-bottom: 8px; }
+}
+
+
+/* Mobile performance: avoid expensive blur layers and continuous background effects. */
+@media (max-width: 640px) {
+  .blob { filter: none !important; opacity: .28; animation: none !important; }
+  .glass, .bubble, .day-sep span, .modal-backdrop, .admin-modal, .suggest, .picker, .toast { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .glass::before, .glass::after { display: none !important; }
+  .message-row { animation: none; }
+  .orb, .live-pill i { animation: none; }
+  .bubble { box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
