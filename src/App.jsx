@@ -143,8 +143,29 @@ function App() {
 
   useEffect(() => {
     const last = messages[messages.length - 1];
-    if (nearBottom.current || last?.user_id === myId) bottom.current?.scrollIntoView({ behavior: 'smooth' });
+    if (nearBottom.current || last?.user_id === myId) listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  // Phone keyboard fix: size the whole app to the VISIBLE area (above the keyboard) so the header and
+  // the message box never slide off-screen or get cut when the keyboard opens.
+  useEffect(() => {
+    const vv = window.visualViewport; if (!vv) return;
+    const root = document.documentElement;
+    const apply = () => {
+      root.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--app-top', `${Math.round(vv.offsetTop)}px`);
+      root.classList.toggle('kb-open', window.innerHeight - vv.height > 120);
+      if (vv.offsetTop > 0) window.scrollTo(0, 0);
+      const el = listRef.current;
+      if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
+    };
+    apply();
+    vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply);
+    return () => {
+      vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply);
+      root.style.removeProperty('--app-h'); root.style.removeProperty('--app-top'); root.classList.remove('kb-open');
+    };
+  }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4200); return () => clearTimeout(t); }, [toast]);
 
   // Owner only: keep the member list fresh while the owner is unlocked.
@@ -163,7 +184,7 @@ function App() {
   async function loadChat() {
     const { data } = await supabase.from('messages').select('*').order('created_at').limit(200);
     setMessages(data || []);
-    setTimeout(() => bottom.current?.scrollIntoView(), 50);
+    setTimeout(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, 50);
   }
   function saveProfile(p) { localStorage.setItem('sr-profile', JSON.stringify(p)); setProfile(p); }
 
@@ -197,6 +218,7 @@ function App() {
   async function sendMessage(e) {
     e.preventDefault(); if (!message.trim() || !session) return;
     const body = message.trim().slice(0, 2000); setMessage(''); setPickerOpen(false);
+    inputRef.current?.focus(); // keep the phone keyboard open after sending
     nearBottom.current = true;
     const { error: sendError } = await supabase.from('messages').insert({ user_id: session.user.id, nickname: profile.nickname, body, avatar_url: profile.avatar || null });
     if (sendError) { setToast(sendError.message); setMessage(body); }
@@ -348,13 +370,13 @@ function App() {
         <div ref={bottom}/>
       </div>
       <div className="composer-wrap">
-        {!atBottom && <button type="button" className="to-bottom glass" aria-label="Neeche jayein" onClick={() => bottom.current?.scrollIntoView({ behavior: 'smooth' })}><ChevronDown size={20}/></button>}
+        {!atBottom && <button type="button" className="to-bottom glass" aria-label="Neeche jayein" onClick={() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })}><ChevronDown size={20}/></button>}
         {suggestions.length > 0 && <div className="suggest glass">{suggestions.map(n => <button type="button" key={n} onMouseDown={e => e.preventDefault()} onClick={() => pickMention(n)}><Avatar name={n} cls="sm"/>{n}</button>)}</div>}
         {pickerOpen && <div className="picker glass">{EMOJIS.map(em => <button type="button" key={em} onMouseDown={e => e.preventDefault()} onClick={() => addEmoji(em)}><Emoji char={em}/></button>)}</div>}
         <form className="composer glass" onSubmit={sendMessage}>
-          <button type="button" className="emoji-btn" aria-label="Emoji" onClick={() => setPickerOpen(o => !o)}><Smile size={20}/></button>
+          <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)}><Smile size={20}/></button>
           <input ref={inputRef} value={message} onChange={e => setMessage(e.target.value)} placeholder="Message likhein… (@ se mention)" maxLength="2000" enterKeyHint="send"/>
-          <button className="send" disabled={!message.trim()} aria-label="Send message"><Send size={18}/></button>
+          <button className="send" disabled={!message.trim()} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
         </form>
       </div>
     </section></main>}

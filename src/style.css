@@ -239,3 +239,22 @@ button, input { font: inherit; }
 .mini-btn:hover { background: rgba(255,255,255,.2); }
 .rm-btn { background: rgba(255,122,138,.16); color: #ff9aa8; }
 .rm-btn:hover { background: rgba(255,122,138,.3); color: #fff; }
+
+/* ---------- v4: phone keyboard-safe layout ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { position: fixed; inset: 0; width: 100%; overflow: hidden; }
+/* The app always fills exactly the visible area; --app-h / --app-top are set from window.visualViewport in App.jsx. */
+.app-shell { position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-h, 100dvh); min-height: 0; }
+.chat-wrap, .chat-card, .messages, .message-row, .message-content { min-width: 0; }
+.chat-card { min-height: 0; }
+.messages { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.bubble { max-width: 100%; }
+.gate-wrap { display: flex; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.gate-card { margin: auto; }
+html.kb-open .chat-wrap { padding-bottom: 8px; }
+@media (max-width: 640px) {
+  /* keyboard is open on a small screen: give every pixel to the chat */
+  html.kb-open .topbar { display: none; }
+  html.kb-open .chat-head { height: 50px; }
+  html.kb-open .composer-wrap { padding-bottom: 8px; }
+}
