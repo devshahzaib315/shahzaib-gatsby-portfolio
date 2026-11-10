@@ -17,8 +17,12 @@ const EMOJI_RE = /(\p{Regional_Indicator}{2}|[#*0-9]️?⃣|\p{Extended_Pictogra
 const EMOJIS = '😀 😁 😂 🤣 😊 😍 😘 😎 🤩 🥳 😇 🙂 😉 😋 😜 🤔 🤗 😴 😢 😭 😡 🥺 😱 🤯 🙄 😬 😅 🙏 👍 👎 👏 🙌 🤝 💪 👀 🔥 ✨ ⭐ 🌟 💯 🎉 🎁 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 🎵 ☕ 🍕 🍔 🍟 🍫 🎂 🌹 🌸 🌙 ☀️ ⚡ 🚀 🏆 ⚽ 🎮 📱 💻 📷 🔒 ✅ ❌ ⚠️'.split(' ');
 
 function Emoji({ char }) {
-  const [step] = useState(0);
-  return <span className="emoji-native">{char}</span>;
+  const [step, setStep] = useState(0);
+  if (IS_APPLE) return <span className="emoji-native">{char}</span>;
+  const base = Array.from(char).map(c => c.codePointAt(0).toString(16)).join('-');
+  const tries = base.includes('fe0f') ? [base] : [base, `${base}-fe0f`];
+  if (step >= tries.length) return <span className="emoji-native">{char}</span>;
+  return <img className="emoji" src={`${EMOJI_CDN}${tries[step]}.png`} alt={char} draggable="false" onError={() => setStep(s => s + 1)} />;
 }
 function EmojiText({ text }) {
   return <>{text.split(EMOJI_RE).map((part, i) => (i % 2 ? <Emoji key={i} char={part} /> : part))}</>;
