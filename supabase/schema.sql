@@ -31,7 +31,8 @@ alter table public.messages enable row level security;
 
 -- No direct browser access to activation codes. Edge Functions use service role.
 revoke all on public.activation_codes from anon, authenticated;
-grant select on public.room_members to authenticated;
+-- Member list/count is private: only the owner can read it, via the admin-codes Edge Function.
+revoke all on public.room_members from anon, authenticated;
 grant select, insert on public.messages to authenticated;
 
 create or replace function public.is_room_member()
@@ -47,8 +48,6 @@ revoke all on function public.is_room_member() from public;
 grant execute on function public.is_room_member() to authenticated;
 
 drop policy if exists "Members can see members" on public.room_members;
-create policy "Members can see members" on public.room_members
-for select to authenticated using (public.is_room_member());
 
 drop policy if exists "Members can read messages" on public.messages;
 create policy "Members can read messages" on public.messages
@@ -63,11 +62,6 @@ for insert to authenticated with check (
 -- Enable realtime updates for the chat tables.
 do $$ begin
   alter publication supabase_realtime add table public.messages;
-exception when duplicate_object then null;
-when undefined_object then null;
-end $$;
-do $$ begin
-  alter publication supabase_realtime add table public.room_members;
 exception when duplicate_object then null;
 when undefined_object then null;
 end $$;

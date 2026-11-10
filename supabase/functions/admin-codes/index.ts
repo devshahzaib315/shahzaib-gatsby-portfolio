@@ -30,6 +30,11 @@ Deno.serve(async (req) => {
       if (error) throw error;
       return json({ codes: (data || []).map(c => ({ ...c, code_hint: c.code_hint })) });
     }
+    if (action === "members") {
+      const { data, error } = await db.from("room_members").select("nickname,joined_at,last_seen").order("joined_at", { ascending: true });
+      if (error) throw error;
+      return json({ count: (data || []).length, members: data || [] });
+    }
     return json({ error: "Unknown action." }, 400);
   } catch (e) { return json({ error: e.message || "Unexpected server error." }, 500); }
 });
