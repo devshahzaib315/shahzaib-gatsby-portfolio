@@ -65,3 +65,38 @@ do $$ begin
 exception when duplicate_object then null;
 when undefined_object then null;
 end $$;
+
+
+-- ===== v2: member email (owner-only), profile photos, safe avatar URLs =====
+-- NOTE: the avatar URL check below contains this project's URL. Change it if you use another Supabase project.
+alter table public.room_members add column if not exists email text;
+alter table public.messages add column if not exists avatar_url text;
+alter table public.messages drop constraint if exists messages_avatar_url_len;
+alter table public.messages add constraint messages_avatar_url_len check (avatar_url is null or char_length(avatar_url) <= 500);
+
+drop policy if exists "Members can send messages" on public.messages;
+create policy "Members can send messages" on public.messages
+for insert to authenticated with check (
+  user_id = auth.uid() and public.is_room_member()
+  and (avatar_url is null or avatar_url like ('https://qvbrmbtuqvoksciauswd.supabase.co/storage/v1/object/public/avatars/' || auth.uid()::text || '/%'))
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 1048576, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "avatars member insert" on storage.objects;
+create policy "avatars member insert" on storage.objects for insert to authenticated
+with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.is_room_member());
+drop policy if exists "avatars member update" on storage.objects;
+create policy "avatars member update" on storage.objects for update to authenticated
+using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.is_room_member())
+with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text and public.is_room_member());
+drop policy if exists "avatars member select own" on storage.objects;
+create policy "avatars member select own" on storage.objects for select to authenticated
+using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "avatars member delete" on storage.objects;
+create policy "avatars member delete" on storage.objects for delete to authenticated
+using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+revoke execute on function public.is_room_member() from anon;

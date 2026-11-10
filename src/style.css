@@ -205,3 +205,37 @@ button, input { font: inherit; }
   .picker { grid-template-columns: repeat(7, 1fr); }
   .admin-modal { padding: 22px 18px; }
 }
+
+/* ---------- v3: profile photos, rich chat, owner tools ---------- */
+.avatar { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; object-fit: cover; user-select: none;
+  background: linear-gradient(135deg, var(--blue), var(--violet)); border: 1px solid rgba(255,255,255,.38); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 4px 14px rgba(2,6,23,.35); }
+.avatar.sm { width: 28px; height: 28px; font-size: 12px; }
+.avatar.xl { width: 112px; height: 112px; font-size: 44px; border-width: 2px; box-shadow: inset 0 2px 0 rgba(255,255,255,.5), 0 14px 40px rgba(99,102,241,.45); }
+.avatar-slot { width: 34px; flex: none; display: flex; align-items: flex-end; }
+.me-btn { border: 0; background: none; padding: 2px; cursor: pointer; border-radius: 50%; display: grid; place-items: center; transition: transform .15s; }
+.me-btn:hover { transform: scale(1.08); }
+.head-left { display: flex; align-items: center; gap: 12px; }
+.room-logo { width: 42px; height: 42px; border-radius: 15px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--aqua), var(--violet)); box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 8px 22px rgba(34,211,238,.3); }
+.message-row.grouped { margin-top: -6px; }
+.message-row.grouped .bubble, .message-row.mine.grouped .bubble { border-radius: 20px; }
+.day-sep { display: flex; justify-content: center; margin: 10px 0 2px; }
+.day-sep span { font-size: 11px; font-weight: 600; color: #c7d2f5; padding: 5px 13px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.to-bottom { position: absolute; right: 18px; bottom: 80px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--stroke); color: #fff; display: grid; place-items: center; cursor: pointer; z-index: 4; animation: rise .2s ease both; }
+.hint { font-size: 11px; color: var(--muted); margin: 2px 2px 0; line-height: 1.5; }
+.code-input.plain input { font-family: inherit; font-size: 16px; letter-spacing: 0; }
+.profile-modal { text-align: left; }
+.profile-modal h2.center, .profile-modal p.center { text-align: center; }
+.dp-wrap { position: relative; width: 112px; margin: 18px auto 10px; }
+.dp-cam { position: absolute; right: -4px; bottom: -4px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.5); color: #04101f; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(135deg, #7ee8fa, #a5b4fc 60%, #c4b5fd); box-shadow: 0 8px 20px rgba(99,102,241,.5); }
+.dp-cam:disabled, .secondary:disabled { opacity: .45; cursor: default; }
+.members-box { max-height: 270px; }
+.member-line { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.member-line .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.member-line .who b { font-size: 14px; font-weight: 600; color: #fff; }
+.member-line .who small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-btn, .rm-btn { border: 0; width: 34px; height: 34px; flex: none; border-radius: 11px; cursor: pointer; display: grid; place-items: center; transition: background .2s; }
+.mini-btn { background: rgba(255,255,255,.1); color: #cfd8f5; }
+.mini-btn:hover { background: rgba(255,255,255,.2); }
+.rm-btn { background: rgba(255,122,138,.16); color: #ff9aa8; }
+.rm-btn:hover { background: rgba(255,122,138,.3); color: #fff; }
