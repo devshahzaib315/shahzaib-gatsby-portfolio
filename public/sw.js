@@ -1,5 +1,5 @@
 // Network-first service worker: always tries the live site, keeps a copy for offline.
-const CACHE = 'shahzaib-room-v2';
+const CACHE = 'shahzaib-room-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
