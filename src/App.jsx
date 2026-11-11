@@ -258,14 +258,10 @@ function App() {
         if (authError) throw authError;
         current = data.session;
       }
-      const { error: upgradeError } = await supabase.auth.updateUser({ email: cleanEmail, password });
-      if (upgradeError) throw upgradeError;
-      const refreshed = await supabase.auth.getSession();
-      current = refreshed.data.session || current;
       const response = await fetch(`${FN}/redeem-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${current.access_token}` },
-        body: JSON.stringify({ code: code.trim(), nickname: nickname.trim().slice(0, 28), username: cleanUsername, email: cleanEmail })
+        body: JSON.stringify({ code: code.trim(), nickname: nickname.trim().slice(0, 28), username: cleanUsername, email: cleanEmail, password })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'The activation code was not accepted.');
