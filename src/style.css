@@ -286,3 +286,17 @@ html.kb-open .toast { bottom: 76px; }
   .orb { animation: none; }
   .avatar { box-shadow: none; }
 }
+
+
+/* ---------- auth account-switch refinement ---------- */
+.gate-card > .account-switch {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 9px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+}

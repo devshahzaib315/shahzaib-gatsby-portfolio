@@ -249,9 +249,9 @@ function App() {
       if (!nickname.trim() || !code.trim()) throw new Error('Enter your display name and activation code.');
       const cleanEmail = email.trim().toLowerCase();
       const cleanUsername = username.trim().toLowerCase();
-      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username must be 3–24 characters and contain only letters, numbers, or underscores.');
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
-      if (password.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
+      if (password.length < 8) throw new Error('Password must be at least 8 characters long.');
       let current = session;
       if (!current) {
         const { data, error: authError } = await supabase.auth.signInAnonymously();
@@ -301,16 +301,15 @@ function App() {
     try {
       const cleanEmail = accountEmail.trim().toLowerCase();
       const cleanUsername = accountUsername.trim().toLowerCase();
-      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username must be 3–24 characters and contain only letters, numbers, or underscores.');
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
-      if (accountPassword.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
-      const { error: updateError } = await supabase.auth.updateUser({ email: cleanEmail, password: accountPassword });
-      if (updateError) throw updateError;
+      if (accountPassword.length < 8) throw new Error('Password must be at least 8 characters long.');
       const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error('Your session has expired. Please sign in again.');
       const response = await fetch(`${FN}/account-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${data.session.access_token}` },
-        body: JSON.stringify({ username: cleanUsername, email: cleanEmail })
+        body: JSON.stringify({ username: cleanUsername, email: cleanEmail, password: accountPassword })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Account details could not be saved.');
@@ -461,10 +460,10 @@ function App() {
       <div className="orb"><LockKeyhole size={26}/></div>
       <div className="eyebrow"><span/> PRIVATE ACCOUNT</div>
       <h1>{loginMode ? <>Welcome<br/><em>back.</em></> : <>One code,<br/><em>and you are in.</em></>}</h1>
-      <p className="sub">{loginMode ? 'Email ya username aur password se login karein.' : 'Account banane ke liye details aur apna one-time invitation code enter karein.'}</p>
+      <p className="sub">{loginMode ? 'Sign in with your email or username and password.' : 'Enter your details and one-time invitation code to create an account.'}</p>
       {loginMode ? <form onSubmit={loginRoom} className="gate-form">
-        <label>Email ya username</label>
-        <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email ya username" autoComplete="username" required/></div>
+        <label>Email or Username</label>
+        <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Username" autoComplete="username" required/></div>
         <label>Password</label>
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" required/>
         <button className="primary" disabled={busy}>{busy ? 'SIGNING IN…' : 'LOGIN'} <span>↗</span></button>
@@ -482,7 +481,7 @@ function App() {
         <div className="code-input"><KeyRound size={18}/><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="SHAH-XXXX-XXXX" autoCapitalize="characters" required/></div>
         <button className="primary" disabled={busy}>{busy ? 'CREATING ACCOUNT…' : 'CREATE ACCOUNT & ENTER'} <span>↗</span></button>
       </form>}
-      <button type="button" className="secondary" onClick={() => { setLoginMode(v => !v); setError(''); setPassword(''); }}>{loginMode ? 'New member? Create account with invitation code' : 'Already have an account? Login'}</button>
+      <button type="button" className="secondary account-switch" onClick={() => { setLoginMode(v => !v); setError(''); setPassword(''); }}>{loginMode ? 'New member? Create account with invitation code' : 'Already have an account? Login'}</button>
       {error && <p className="error">{error}</p>}{notice && <p className="success">{notice}</p>}
       <div className="gate-foot"><ShieldCheck size={15}/> {loginMode ? 'Login with your email or username.' : 'Invitation code can be used only once.'}</div>
     </div></main> :
@@ -521,14 +520,14 @@ function App() {
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeDp}/>
       </div>
       <h2 className="center">{me}</h2>
-      <p className="center">{dpBusy ? 'Uploading photo…' : 'Tap the camera icon to set your profile photo. It appears next to your name in the chat.'}</p>
+      <p className="center">{dpBusy ? 'Uploading photo…' : 'Tap the camera icon to set your profile photo. It will appear next to your name in the chat.'}</p>
       <div className="row2">
         <button className="secondary" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={14}/> {profile?.avatar ? 'Change photo' : 'Add photo'}</button>
         <button className="secondary" disabled={dpBusy || !profile?.avatar} onClick={removeDp}><Trash2 size={14}/> Remove photo</button>
       </div>
       <hr/>
       <h3>Set up login details</h3>
-      <p className="center">Purane members bhi yahan username, email aur password set kar sakte hain. Activation code dobara nahi chahiye.</p>
+      <p className="center">Existing members can set their username, email, and password here. No new invitation code is required.</p>
       <form className="gate-form" onSubmit={saveAccountCredentials}>
         <label>Username</label>
         <input value={accountUsername} onChange={e => setAccountUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder={profile?.username || 'Choose a username'} minLength="3" maxLength="24" required/>
