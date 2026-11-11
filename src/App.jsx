@@ -106,6 +106,10 @@ function App() {
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
+  const [typingUsers, setTypingUsers] = useState([]);
+  const typingChannelRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const remoteTypingTimersRef = useRef({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -145,8 +149,30 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
       })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (!payload || payload.user_id === myId || !payload.user_id) return;
+        const uid = payload.user_id;
+        clearTimeout(remoteTypingTimersRef.current[uid]);
+        if (!payload.typing) {
+          setTypingUsers(prev => prev.filter(user => user.user_id !== uid));
+          delete remoteTypingTimersRef.current[uid];
+          return;
+        }
+        setTypingUsers(prev => [...prev.filter(user => user.user_id !== uid), { user_id: uid, nickname: payload.nickname || 'Someone' }]);
+        remoteTypingTimersRef.current[uid] = setTimeout(() => {
+          setTypingUsers(prev => prev.filter(user => user.user_id !== uid));
+          delete remoteTypingTimersRef.current[uid];
+        }, 2200);
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    typingChannelRef.current = channel;
+    return () => {
+      typingChannelRef.current = null;
+      Object.values(remoteTypingTimersRef.current).forEach(clearTimeout);
+      remoteTypingTimersRef.current = {};
+      setTypingUsers([]);
+      supabase.removeChannel(channel);
+    };
   }, [view, session]);
 
   // If the owner removes someone, their next check fails and they are sent back to the entry screen.
@@ -236,8 +262,26 @@ function App() {
     finally { setBusy(false); }
   }
 
+  function publishTyping(typing) {
+    if (!session || !profile?.nickname) return;
+    typingChannelRef.current?.send({
+      type: 'broadcast', event: 'typing',
+      payload: { user_id: session.user.id, nickname: profile.nickname, typing }
+    });
+  }
+  function handleMessageChange(value) {
+    setMessage(value);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    if (value.trim()) {
+      publishTyping(true);
+      typingTimerRef.current = setTimeout(() => publishTyping(false), 1800);
+    } else publishTyping(false);
+  }
+
   async function sendMessage(e) {
     e.preventDefault(); if (!message.trim() || !session) return;
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    publishTyping(false);
     const body = message.trim().slice(0, 2000); setMessage(''); setPickerOpen(false);
     inputRef.current?.focus(); // keep the phone keyboard open after sending
     nearBottom.current = true;
@@ -375,6 +419,7 @@ function App() {
     </div></main> :
     <main className="chat-wrap"><section className="chat-card glass">
       <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group</small></div></div><span className="live-pill"><i/> LIVE</span></div>
+      {typingUsers.length > 0 && <div role="status" aria-live="polite" style={{ padding: '7px 18px', color: 'var(--muted, #9aa4b8)', fontSize: 12, minHeight: 28 }}><span style={{ color: 'var(--accent, #9b8cff)' }}>{typingUsers.slice(0, 3).map(user => user.nickname).join(', ')}</span>{typingUsers.length === 1 ? ' is typing…' : ' are typing…'}</div>}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : m.avatar_url} pattern={mentionPattern} me={me}/>; })}
@@ -386,7 +431,7 @@ function App() {
         {pickerOpen && <div className="picker glass">{EMOJIS.map(em => <button type="button" key={em} onMouseDown={e => e.preventDefault()} onClick={() => addEmoji(em)}><Emoji char={em}/></button>)}</div>}
         <form className="composer glass" onSubmit={sendMessage}>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)}><Smile size={20}/></button>
-          <input ref={inputRef} value={message} onChange={e => setMessage(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send"/>
+          <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send"/>
           <button className="send" disabled={!message.trim()} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
         </form>
       </div>
