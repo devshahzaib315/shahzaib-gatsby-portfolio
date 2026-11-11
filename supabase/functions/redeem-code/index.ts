@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
     // Validate the email BEFORE the code is consumed, so a typo does not burn a one-time code.
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
-    if (cleanEmail.length > 254 || !emailRe.test(cleanEmail)) return json({ error: "Sahi email address likhein." }, 400);
+    if (cleanEmail.length > 254 || !emailRe.test(cleanEmail)) return json({ error: "Enter a valid email address." }, 400);
 
     const normalized = code.trim().toUpperCase();
     const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
