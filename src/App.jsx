@@ -249,9 +249,9 @@ function App() {
       if (!nickname.trim() || !code.trim()) throw new Error('Enter your display name and activation code.');
       const cleanEmail = email.trim().toLowerCase();
       const cleanUsername = username.trim().toLowerCase();
-      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username must be 3–24 characters and contain only letters, numbers, or underscores.');
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
-      if (password.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
+      if (password.length < 8) throw new Error('Password must be at least 8 characters long.');
       let current = session;
       if (!current) {
         const { data, error: authError } = await supabase.auth.signInAnonymously();
@@ -461,10 +461,10 @@ function App() {
       <div className="orb"><LockKeyhole size={26}/></div>
       <div className="eyebrow"><span/> PRIVATE ACCOUNT</div>
       <h1>{loginMode ? <>Welcome<br/><em>back.</em></> : <>One code,<br/><em>and you are in.</em></>}</h1>
-      <p className="sub">{loginMode ? 'Email ya username aur password se login karein.' : 'Account banane ke liye details aur apna one-time invitation code enter karein.'}</p>
+      <p className="sub">{loginMode ? 'Sign in with your email or username and password.' : 'Enter your details and one-time invitation code to create an account.'}</p>
       {loginMode ? <form onSubmit={loginRoom} className="gate-form">
-        <label>Email ya username</label>
-        <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email ya username" autoComplete="username" required/></div>
+        <label>Email or Username</label>
+        <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Username" autoComplete="username" required/></div>
         <label>Password</label>
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" required/>
         <button className="primary" disabled={busy}>{busy ? 'SIGNING IN…' : 'LOGIN'} <span>↗</span></button>
@@ -482,7 +482,7 @@ function App() {
         <div className="code-input"><KeyRound size={18}/><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="SHAH-XXXX-XXXX" autoCapitalize="characters" required/></div>
         <button className="primary" disabled={busy}>{busy ? 'CREATING ACCOUNT…' : 'CREATE ACCOUNT & ENTER'} <span>↗</span></button>
       </form>}
-      <button type="button" className="secondary" onClick={() => { setLoginMode(v => !v); setError(''); setPassword(''); }}>{loginMode ? 'New member? Create account with invitation code' : 'Already have an account? Login'}</button>
+      <button type="button" className="secondary account-switch" onClick={() => { setLoginMode(v => !v); setError(''); setPassword(''); }}>{loginMode ? 'New member? Create account with invitation code' : 'Already have an account? Login'}</button>
       {error && <p className="error">{error}</p>}{notice && <p className="success">{notice}</p>}
       <div className="gate-foot"><ShieldCheck size={15}/> {loginMode ? 'Login with your email or username.' : 'Invitation code can be used only once.'}</div>
     </div></main> :
