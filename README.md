@@ -21,6 +21,8 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase secrets set ADMIN_PASSWORD="choose-a-long-private-password"
 npx supabase functions deploy admin-codes
 npx supabase functions deploy redeem-code
+npx supabase functions deploy account-login
+npx supabase functions deploy account-credentials
 ```
 The Supabase CLI deploys functions with the project's service role key available server-side. Never expose that key in the browser.
 

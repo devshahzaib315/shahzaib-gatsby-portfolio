@@ -95,7 +95,14 @@ function App() {
   const [profile, setProfile] = useState(() => { try { return JSON.parse(localStorage.getItem('sr-profile') || 'null'); } catch { return null; } });
   const [view, setView] = useState('gate');
   const [nickname, setNickname] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [loginMode, setLoginMode] = useState(false);
+  const [accountUsername, setAccountUsername] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
   const [code, setCode] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [adminOpen, setAdminOpen] = useState(false);
@@ -239,26 +246,77 @@ function App() {
     e.preventDefault(); setError(''); setBusy(true);
     try {
       if (!configured) throw new Error('Please set up Supabase first. Follow the instructions in the README.');
-      if (!nickname.trim() || !code.trim()) throw new Error('Enter your name and activation code.');
+      if (!nickname.trim() || !code.trim()) throw new Error('Enter your display name and activation code.');
       const cleanEmail = email.trim().toLowerCase();
+      const cleanUsername = username.trim().toLowerCase();
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
+      if (password.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
       let current = session;
       if (!current) {
         const { data, error: authError } = await supabase.auth.signInAnonymously();
         if (authError) throw authError;
         current = data.session;
       }
+      const { error: upgradeError } = await supabase.auth.updateUser({ email: cleanEmail, password });
+      if (upgradeError) throw upgradeError;
+      const refreshed = await supabase.auth.getSession();
+      current = refreshed.data.session || current;
       const response = await fetch(`${FN}/redeem-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${current.access_token}` },
-        body: JSON.stringify({ code: code.trim(), nickname: nickname.trim().slice(0, 28), email: cleanEmail })
+        body: JSON.stringify({ code: code.trim(), nickname: nickname.trim().slice(0, 28), username: cleanUsername, email: cleanEmail })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'The activation code was not accepted.');
-      saveProfile({ nickname: nickname.trim().slice(0, 28), avatar: null });
+      saveProfile({ nickname: nickname.trim().slice(0, 28), username: cleanUsername, avatar: null });
       setView('chat'); setNotice('Welcome to Shahzaib Room.');
-      setTimeout(() => setProfileOpen(true), 600); // invite them to add a photo right away
+      setTimeout(() => setProfileOpen(true), 600);
     } catch (err) { setError(err.message || 'Something went wrong.'); }
+    finally { setBusy(false); }
+  }
+
+  async function loginRoom(e) {
+    e.preventDefault(); setError(''); setBusy(true);
+    try {
+      if (!configured) throw new Error('Please set up Supabase first. Follow the instructions in the README.');
+      const response = await fetch(`${FN}/account-login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: ANON },
+        body: JSON.stringify({ identifier: identifier.trim(), password })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.session) throw new Error(result.error || 'Login failed. Check your details.');
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.session.access_token, refresh_token: result.session.refresh_token
+      });
+      if (sessionError) throw sessionError;
+      saveProfile({ nickname: result.member.nickname, username: result.member.username, avatar: null });
+      setView('chat'); setNotice('Welcome back.');
+    } catch (err) { setError(err.message || 'Login failed.'); }
+    finally { setBusy(false); }
+  }
+
+  async function saveAccountCredentials(e) {
+    e.preventDefault(); setError(''); setBusy(true);
+    try {
+      const cleanEmail = accountEmail.trim().toLowerCase();
+      const cleanUsername = accountUsername.trim().toLowerCase();
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
+      if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
+      if (accountPassword.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
+      const { error: updateError } = await supabase.auth.updateUser({ email: cleanEmail, password: accountPassword });
+      if (updateError) throw updateError;
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch(`${FN}/account-credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({ username: cleanUsername, email: cleanEmail })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Account details could not be saved.');
+      saveProfile({ ...profile, username: cleanUsername });
+      setAccountPassword(''); setToast('Login details saved. Email verification may be required by Supabase.');
+    } catch (err) { setError(err.message || 'Could not save login details.'); }
     finally { setBusy(false); }
   }
 
@@ -401,21 +459,32 @@ function App() {
 
     {view === 'gate' ? <main className="gate-wrap"><div className="gate-card glass">
       <div className="orb"><LockKeyhole size={26}/></div>
-      <div className="eyebrow"><span/> INVITATION ONLY</div>
-      <h1>One code,<br/><em>and you are in.</em></h1>
-      <p className="sub">This is a private space. Enter your personal invitation code to join the room.</p>
-      <form onSubmit={joinRoom} className="gate-form">
+      <div className="eyebrow"><span/> PRIVATE ACCOUNT</div>
+      <h1>{loginMode ? <>Welcome<br/><em>back.</em></> : <>One code,<br/><em>and you are in.</em></>}</h1>
+      <p className="sub">{loginMode ? 'Email ya username aur password se login karein.' : 'Account banane ke liye details aur apna one-time invitation code enter karein.'}</p>
+      {loginMode ? <form onSubmit={loginRoom} className="gate-form">
+        <label>Email ya username</label>
+        <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email ya username" autoComplete="username" required/></div>
+        <label>Password</label>
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" required/>
+        <button className="primary" disabled={busy}>{busy ? 'SIGNING IN…' : 'LOGIN'} <span>↗</span></button>
+      </form> : <form onSubmit={joinRoom} className="gate-form">
         <label>Your name</label>
         <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="e.g. Shahzaib" maxLength="28" required/>
+        <label>Username</label>
+        <input value={username} onChange={e => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder="3–24 characters" autoComplete="username" minLength="3" maxLength="24" required/>
         <label>Your email</label>
         <div className="code-input plain"><Mail size={18}/><input type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="aap@example.com" maxLength="254" required/></div>
+        <label>Password</label>
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength="8" required/>
         <p className="hint">Your email is visible only to the room owner, not to other members.</p>
         <label>Activation code</label>
         <div className="code-input"><KeyRound size={18}/><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="SHAH-XXXX-XXXX" autoCapitalize="characters" required/></div>
-        <button className="primary" disabled={busy}>{busy ? 'VERIFYING…' : 'ENTER ROOM'} <span>↗</span></button>
-      </form>
+        <button className="primary" disabled={busy}>{busy ? 'CREATING ACCOUNT…' : 'CREATE ACCOUNT & ENTER'} <span>↗</span></button>
+      </form>}
+      <button type="button" className="secondary" onClick={() => { setLoginMode(v => !v); setError(''); setPassword(''); }}>{loginMode ? 'New member? Create account with invitation code' : 'Already have an account? Login'}</button>
       {error && <p className="error">{error}</p>}{notice && <p className="success">{notice}</p>}
-      <div className="gate-foot"><ShieldCheck size={15}/> Your invitation is private and can be used only once.</div>
+      <div className="gate-foot"><ShieldCheck size={15}/> {loginMode ? 'Login with your email or username.' : 'Invitation code can be used only once.'}</div>
     </div></main> :
     <main className="chat-wrap"><section className="chat-card glass">
       <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group</small></div></div><span className="live-pill"><i/> LIVE</span></div>
@@ -457,6 +526,19 @@ function App() {
         <button className="secondary" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={14}/> {profile?.avatar ? 'Change photo' : 'Add photo'}</button>
         <button className="secondary" disabled={dpBusy || !profile?.avatar} onClick={removeDp}><Trash2 size={14}/> Remove photo</button>
       </div>
+      <hr/>
+      <h3>Set up login details</h3>
+      <p className="center">Purane members bhi yahan username, email aur password set kar sakte hain. Activation code dobara nahi chahiye.</p>
+      <form className="gate-form" onSubmit={saveAccountCredentials}>
+        <label>Username</label>
+        <input value={accountUsername} onChange={e => setAccountUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder={profile?.username || 'Choose a username'} minLength="3" maxLength="24" required/>
+        <label>Email</label>
+        <input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} placeholder="aap@example.com" maxLength="254" required/>
+        <label>New password</label>
+        <input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder="At least 8 characters" minLength="8" required/>
+        <button className="primary" disabled={busy}>{busy ? 'SAVING…' : 'SAVE LOGIN DETAILS'}</button>
+      </form>
+      {error && <p className="error">{error}</p>}
     </div></div>}
 
     {adminOpen && <div className="modal-backdrop" onClick={() => setAdminOpen(false)}><div className="admin-modal glass" onClick={e => e.stopPropagation()}>

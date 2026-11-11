@@ -13,10 +13,16 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !user) return json({ error: "Please sign in and try again." }, 401);
 
-    const { code, nickname, email } = await req.json();
+    const { code, nickname, username, email } = await req.json();
     if (typeof code !== "string" || typeof nickname !== "string" || !nickname.trim()) return json({ error: "Code and display name are required." }, 400);
 
-    // Validate the email BEFORE the code is consumed, so a typo does not burn a one-time code.
+    const cleanUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
+    if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) return json({ error: "Username must be 3–24 characters using letters, numbers, or underscore." }, 400);
+
+    // Validate details and username availability BEFORE consuming the one-time code.
+    const { data: existingUsername, error: usernameErr } = await admin.from("room_members").select("user_id").eq("username", cleanUsername).maybeSingle();
+    if (usernameErr) throw usernameErr;
+    if (existingUsername && existingUsername.user_id !== user.id) return json({ error: "That username is already taken." }, 409);
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (cleanEmail.length > 254 || !emailRe.test(cleanEmail)) return json({ error: "Enter a valid email address." }, 400);
 
@@ -32,7 +38,7 @@ Deno.serve(async (req) => {
     if (!rows?.length) return json({ error: "Invalid, expired, or already-used activation code." }, 403);
 
     const { error: memberErr } = await admin.from("room_members").upsert({
-      user_id: user.id, nickname: nickname.trim().slice(0, 28), email: cleanEmail, last_seen: new Date().toISOString()
+      user_id: user.id, nickname: nickname.trim().slice(0, 28), username: cleanUsername, email: cleanEmail, last_seen: new Date().toISOString()
     });
     if (memberErr) throw memberErr;
     return json({ success: true });

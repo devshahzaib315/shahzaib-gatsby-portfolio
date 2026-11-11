@@ -70,6 +70,9 @@ end $$;
 -- ===== v2: member email (owner-only), profile photos, safe avatar URLs =====
 -- NOTE: the avatar URL check below contains this project's URL. Change it if you use another Supabase project.
 alter table public.room_members add column if not exists email text;
+alter table public.room_members add column if not exists username text;
+create unique index if not exists room_members_username_lower_unique
+  on public.room_members (lower(username)) where username is not null;
 alter table public.messages add column if not exists avatar_url text;
 alter table public.messages drop constraint if exists messages_avatar_url_len;
 alter table public.messages add constraint messages_avatar_url_len check (avatar_url is null or char_length(avatar_url) <= 500);
