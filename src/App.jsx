@@ -301,16 +301,15 @@ function App() {
     try {
       const cleanEmail = accountEmail.trim().toLowerCase();
       const cleanUsername = accountUsername.trim().toLowerCase();
-      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username 3–24 characters ka ho: letters, numbers ya underscore.');
+      if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) throw new Error('Username must be 3–24 characters and contain only letters, numbers, or underscores.');
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
-      if (accountPassword.length < 8) throw new Error('Password kam az kam 8 characters ka hona chahiye.');
-      const { error: updateError } = await supabase.auth.updateUser({ email: cleanEmail, password: accountPassword });
-      if (updateError) throw updateError;
+      if (accountPassword.length < 8) throw new Error('Password must be at least 8 characters long.');
       const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error('Your session has expired. Please sign in again.');
       const response = await fetch(`${FN}/account-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${data.session.access_token}` },
-        body: JSON.stringify({ username: cleanUsername, email: cleanEmail })
+        body: JSON.stringify({ username: cleanUsername, email: cleanEmail, password: accountPassword })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Account details could not be saved.');
@@ -521,14 +520,14 @@ function App() {
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeDp}/>
       </div>
       <h2 className="center">{me}</h2>
-      <p className="center">{dpBusy ? 'Uploading photo…' : 'Tap the camera icon to set your profile photo. It appears next to your name in the chat.'}</p>
+      <p className="center">{dpBusy ? 'Uploading photo…' : 'Tap the camera icon to set your profile photo. It will appear next to your name in the chat.'}</p>
       <div className="row2">
         <button className="secondary" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={14}/> {profile?.avatar ? 'Change photo' : 'Add photo'}</button>
         <button className="secondary" disabled={dpBusy || !profile?.avatar} onClick={removeDp}><Trash2 size={14}/> Remove photo</button>
       </div>
       <hr/>
       <h3>Set up login details</h3>
-      <p className="center">Purane members bhi yahan username, email aur password set kar sakte hain. Activation code dobara nahi chahiye.</p>
+      <p className="center">Existing members can set their username, email, and password here. No new invitation code is required.</p>
       <form className="gate-form" onSubmit={saveAccountCredentials}>
         <label>Username</label>
         <input value={accountUsername} onChange={e => setAccountUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder={profile?.username || 'Choose a username'} minLength="3" maxLength="24" required/>
