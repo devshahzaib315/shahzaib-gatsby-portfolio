@@ -419,10 +419,16 @@ function App() {
     </div></main> :
     <main className="chat-wrap"><section className="chat-card glass">
       <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group</small></div></div><span className="live-pill"><i/> LIVE</span></div>
-      {typingUsers.length > 0 && <div role="status" aria-live="polite" style={{ padding: '7px 18px', color: 'var(--muted, #9aa4b8)', fontSize: 12, minHeight: 28 }}><span style={{ color: 'var(--accent, #9b8cff)' }}>{typingUsers.slice(0, 3).map(user => user.nickname).join(', ')}</span>{typingUsers.length === 1 ? ' is typing…' : ' are typing…'}</div>}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : m.avatar_url} pattern={mentionPattern} me={me}/>; })}
+        {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
+          <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
+            {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--muted, #9aa4b8)' }}>{typingUsers.length === 1 ? `${typingUsers[0].nickname} typing` : 'Someone typing'}</span>
+          <style>{`@keyframes typing-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }`}</style>
+        </div>}
         <div ref={bottom}/>
       </div>
       <div className="composer-wrap">
