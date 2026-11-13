@@ -196,7 +196,7 @@ function App() {
     if (profileOpen) {
       setProfileDraft({ ...PROFILE_DEFAULTS, ...profile });
     }
-  }, [profileOpen]);
+  }, [profileOpen, profile]);
 
   useEffect(() => {
     if (!session?.user?.id || view !== 'chat') return;
@@ -232,7 +232,7 @@ function App() {
       .on('presence', { event: 'sync' }, () => {
         const presence = channel.presenceState();
         const rows = Object.values(presence).flat();
-        const visibleIds = [...new Set(rows.filter(item => item?.user_id && item.show_online_status !== false).map(item => item.user_id))];
+        const visibleIds = [...new Set(rows.filter(item => item?.user_id && item.show_online_status !== false && item.profile_visibility !== 'private').map(item => item.user_id))];
         setOnlineMembers(visibleIds);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
@@ -277,6 +277,7 @@ function App() {
             username: profile?.username || '',
             avatar_url: profile?.avatar || null,
             show_online_status: profile?.showOnlineStatus !== false,
+            profile_visibility: profile?.profileVisibility || 'members',
             online_at: new Date().toISOString()
           });
         }
@@ -289,7 +290,7 @@ function App() {
       setTypingUsers([]);
       supabase.removeChannel(channel);
     };
-  }, [view, session]);
+  }, [view, session, profile?.pushNotifications]);
 
   useEffect(() => {
     if (view !== 'chat' || !session || !typingChannelRef.current) return;
@@ -299,6 +300,7 @@ function App() {
       username: profile?.username || '',
       avatar_url: profile?.avatar || null,
       show_online_status: profile?.showOnlineStatus !== false,
+      profile_visibility: profile?.profileVisibility || 'members',
       online_at: new Date().toISOString()
     });
   }, [profile?.nickname, profile?.username, profile?.avatar, profile?.showOnlineStatus, view, session]);
@@ -503,11 +505,6 @@ function App() {
     if (userId === myId) { openProfileSettings('profile'); return; }
     setProfileCard({ loading: true, ...fallback });
     setProfileCardOpen(true);
-    const cached = memberProfiles[userId];
-    if (cached) {
-      setProfileCard({ ...cached, user_id: userId });
-      return;
-    }
     const { data, error: fetchError } = await supabase.from('member_profiles')
       .select('user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility')
       .eq('user_id', userId).maybeSingle();
@@ -549,6 +546,7 @@ function App() {
       typingChannelRef.current.track({
         user_id: myId, nickname: mapped.nickname, username: mapped.username,
         avatar_url: mapped.avatar, show_online_status: mapped.showOnlineStatus,
+        profile_visibility: mapped.profileVisibility,
         online_at: new Date().toISOString()
       });
     }
@@ -873,12 +871,12 @@ function App() {
           </div>
           <h2>{profileDraft?.nickname || me}</h2>
           <p>@{profileDraft?.username || profile?.username || 'username'}</p>
-          {profile?.bio && <div className="profile-current-bio">{profile.bio}</div>}
+          {profileDraft?.bio && <div className="profile-current-bio">{profileDraft.bio}</div>}
         </div>
         <nav className="profile-tabs" aria-label="Profile settings">
           <button className={profileTab === 'profile' ? 'active' : ''} onClick={() => setProfileTab('profile')}><UserRound size={15}/> Profile</button>
           <button className={profileTab === 'settings' ? 'active' : ''} onClick={() => setProfileTab('settings')}><Settings size={15}/> Settings</button>
-          <button className={profileTab === 'account' ? 'active' : ''} onClick={() => { setProfileTab('account'); setAccountEmail(session?.user?.email || accountEmail); }}><LockKeyhole size={15}/> Account</button>
+          <button className={profileTab === 'account' ? 'active' : ''} onClick={() => { setProfileTab('account'); setAccountUsername(profile?.username || ''); setAccountEmail(session?.user?.email || accountEmail); }}><LockKeyhole size={15}/> Account</button>
         </nav>
         <div className="profile-tab-content">
           {profileTab === 'profile' && <form className="profile-edit-form" onSubmit={saveMemberProfile}>
@@ -941,11 +939,11 @@ function App() {
         <div className="public-profile-body">
           <div className="public-profile-avatar">
             <Avatar name={profileCard?.display_name || profileCard?.nickname || 'Member'} url={profileCard?.avatar_url || profileCard?.avatar} cls="profile-hero-photo"/>
-            {onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false && <i className="avatar-online-dot"/>}
+            {!profileCard?.private && profileCard?.profile_visibility !== 'private' && onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false && <i className="avatar-online-dot"/>}
           </div>
           <h2>{profileCard?.display_name || profileCard?.nickname || 'Member'}</h2>
           <p className="public-profile-username">@{profileCard?.username || 'member'}</p>
-          <span className={`public-profile-status ${onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'online' : ''}`}><i/>{onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'Online' : 'Offline'}</span>
+          <span className={`public-profile-status ${!profileCard?.private && profileCard?.profile_visibility !== 'private' && onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'online' : ''}`}><i/>{!profileCard?.private && profileCard?.profile_visibility !== 'private' && onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'Online' : 'Offline'}</span>
           {profileCard?.loading ? <p className="profile-private-note">Loading profile…</p> : profileCard?.private ? <p className="profile-private-note">This member keeps their profile private.</p> : <p className="public-profile-bio">{profileCard?.bio || 'No bio yet.'}</p>}
           <div className="public-profile-actions"><button onClick={() => setProfileCardOpen(false)}>Close</button></div>
         </div>
