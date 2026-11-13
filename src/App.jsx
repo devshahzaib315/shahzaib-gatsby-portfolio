@@ -14,6 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const IS_APPLE = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
 const EMOJI_RE = /(\p{Regional_Indicator}{2}|[#*0-9]️?⃣|\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*)/gu;
 const EMOJIS = '😀 😁 😂 🤣 😊 😍 😘 😎 🤩 🥳 😇 🙂 😉 😋 😜 🤔 🤗 😴 😢 😭 😡 🥺 😱 🤯 🙄 😬 😅 🙏 👍 👎 👏 🙌 🤝 💪 👀 🔥 ✨ ⭐ 🌟 💯 🎉 🎁 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 🎵 ☕ 🍕 🍔 🍟 🍫 🎂 🌹 🌸 🌙 ☀️ ⚡ 🚀 🏆 ⚽ 🎮 📱 💻 📷 🔒 ✅ ❌ ⚠️'.split(' ');
+const REACTION_OPTIONS = ['❤️','😂','👍','😮','😢','🔥','👏','🎉','🙏','😍','😡','💯'];
 
 // The Apple-style emoji images are bundled with this site (/emoji/*.webp): fast, cached, and no third-party CDN.
 const hex = c => c.codePointAt(0).toString(16).padStart(4, '0');
@@ -75,16 +76,26 @@ const emojiOnly = body => body.replace(EMOJI_RE, '').trim() === '' && (body.matc
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 // Memoised: typing in the message box no longer re-renders (or re-parses) the whole conversation.
-const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me }) {
+const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me, myId, reactions = [], onReact, reactionBusy }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body), [mine, me, m.body]);
   const big = useMemo(() => emojiOnly(m.body), [m.body]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const summary = useMemo(() => REACTION_OPTIONS.flatMap(reaction => {
+    const matches = reactions.filter(row => row.reaction === reaction);
+    return matches.length ? [{ reaction, count: matches.length, mine: matches.some(row => row.user_id === myId) }] : [];
+  }), [reactions, myId]);
   return <>
     {newDay && <div className="day-sep"><span>{label}</span></div>}
-    <div className={`message-row ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} ${mentioned ? 'mentioned' : ''}`}>
+    <div className={"message-row " + (mine ? "mine " : "") + (grouped ? "grouped " : "") + (mentioned ? "mentioned" : "")}>
       <div className="avatar-slot">{!grouped && <Avatar name={m.nickname} url={dp}/>}</div>
       <div className="message-content">
         {!grouped && <div className="message-meta"><b>{mine ? 'You' : m.nickname}</b><time>{timeOf(m.created_at)}</time></div>}
-        <div className={`bubble ${big ? 'big-emoji' : ''}`}><RichText body={m.body} pattern={pattern} me={me}/></div>
+        <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body} pattern={pattern} me={me}/></div>
+        <div className="message-reaction-row">
+          {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
+          <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
+          {pickerOpen && <div className="message-reaction-picker" role="group" aria-label="Choose a reaction">{REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setPickerOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction}><Emoji char={reaction}/></button>)}</div>}
+        </div>
       </div>
     </div>
   </>;
@@ -116,6 +127,8 @@ function App() {
   const [codes, setCodes] = useState([]);
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
+  const [reactions, setReactions] = useState([]);
+  const [reactionBusy, setReactionBusy] = useState({});
   const [message, setMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState([]);
   const typingChannelRef = useRef(null);
@@ -162,6 +175,16 @@ function App() {
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)));
+        setReactions(prev => prev.filter(row => String(row.message_id) !== String(payload.old.id)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          setReactions(prev => prev.filter(row => String(row.id) !== String(payload.old.id)));
+          return;
+        }
+        const row = payload.new;
+        if (!row?.id) return;
+        setReactions(prev => [...prev.filter(item => String(item.id) !== String(row.id)), row]);
       })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (!payload || payload.user_id === myId || !payload.user_id) return;
@@ -242,9 +265,36 @@ function App() {
     nearBottom.current = near; setAtBottom(near);
   }
   async function loadChat() {
-    const { data } = await supabase.from('messages').select('*').order('created_at').limit(200);
-    setMessages(data || []);
+    const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at').limit(200);
+    if (messagesError) { setToast(messagesError.message); return; }
+    const rows = data || [];
+    setMessages(rows);
+    const ids = rows.map(row => row.id);
+    if (ids.length) {
+      const { data: reactionRows, error: reactionsError } = await supabase.from('message_reactions').select('*').in('message_id', ids);
+      if (reactionsError) setToast('Could not load message reactions: ' + reactionsError.message);
+      else setReactions(reactionRows || []);
+    } else setReactions([]);
     setTimeout(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, 50);
+  }
+
+  async function toggleReaction(messageId, reaction) {
+    if (!session?.user?.id || reactionBusy[messageId]) return;
+    const userId = session.user.id;
+    const existing = reactions.find(row => String(row.message_id) === String(messageId) && row.user_id === userId);
+    setReactionBusy(prev => ({ ...prev, [messageId]: true }));
+    try {
+      if (existing?.reaction === reaction) {
+        const { error: deleteError } = await supabase.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', userId);
+        if (deleteError) throw deleteError;
+        setReactions(prev => prev.filter(row => !(String(row.message_id) === String(messageId) && row.user_id === userId)));
+      } else {
+        const { data, error: saveError } = await supabase.from('message_reactions').upsert({ message_id: messageId, user_id: userId, reaction }, { onConflict: 'message_id,user_id' }).select('*').single();
+        if (saveError) throw saveError;
+        setReactions(prev => [...prev.filter(row => !(String(row.message_id) === String(messageId) && row.user_id === userId)), data]);
+      }
+    } catch (err) { setToast(err.message || 'Could not save reaction.'); }
+    finally { setReactionBusy(prev => ({ ...prev, [messageId]: false })); }
   }
   function saveProfile(p) { localStorage.setItem('sr-profile', JSON.stringify(p)); setProfile(p); }
 
@@ -589,7 +639,7 @@ function App() {
       <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group</small></div></div><span className="live-pill"><i/> LIVE</span></div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : m.avatar_url} pattern={mentionPattern} me={me}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : m.avatar_url} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
