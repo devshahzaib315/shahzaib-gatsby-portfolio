@@ -255,6 +255,18 @@ function App() {
         if (!row?.id) return;
         setReactions(prev => [...prev.filter(item => String(item.id) !== String(row.id)), row]);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'member_profiles' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          setMemberProfiles(prev => {
+            const next = { ...prev };
+            delete next[payload.old.user_id];
+            return next;
+          });
+          return;
+        }
+        const row = payload.new;
+        if (row?.user_id) setMemberProfiles(prev => ({ ...prev, [row.user_id]: row }));
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (!payload || payload.user_id === myId || !payload.user_id) return;
         const uid = payload.user_id;
