@@ -890,6 +890,7 @@ function App() {
           {profileDraft?.avatar && <button type="button" className="profile-photo-remove" disabled={dpBusy} onClick={removeDp}><Trash2 size={12}/> Remove photo</button>}
           <h2>{profileDraft?.nickname || me}</h2>
           <p>@{profileDraft?.username || profile?.username || 'username'}</p>
+          <div className="profile-own-status"><i/> Online</div>
           {profileDraft?.bio && <div className="profile-current-bio">{profileDraft.bio}</div>}
         </div>
         <nav className="profile-tabs" aria-label="Profile settings">
