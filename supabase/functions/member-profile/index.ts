@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
           .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at")
           .eq("user_id", userId).maybeSingle(),
         admin.from("member_preferences")
-          .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications")
+          .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications,theme_mode")
           .eq("user_id", userId).maybeSingle()
       ]);
       if (profileError) throw profileError;
@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
           data_saver: preferences?.data_saver === true,
           autoplay_media: preferences?.autoplay_media !== false,
           hide_sensitive_content: preferences?.hide_sensitive_content !== false,
-          push_notifications: preferences?.push_notifications === true
+          push_notifications: preferences?.push_notifications === true,
+          theme_mode: preferences?.theme_mode === "dark" ? "dark" : "light"
         }
       });
     }
@@ -75,6 +76,7 @@ Deno.serve(async (req) => {
     const autoplayMedia = typeof body.autoplay_media === "boolean" ? body.autoplay_media : true;
     const hideSensitiveContent = typeof body.hide_sensitive_content === "boolean" ? body.hide_sensitive_content : true;
     const pushNotifications = typeof body.push_notifications === "boolean" ? body.push_notifications : false;
+    const themeMode = body.theme_mode === "dark" ? "dark" : "light";
 
     const memberUpdate: Record<string, unknown> = {
       username,
@@ -113,9 +115,10 @@ Deno.serve(async (req) => {
         autoplay_media: autoplayMedia,
         hide_sensitive_content: hideSensitiveContent,
         push_notifications: pushNotifications,
+        theme_mode: themeMode,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id" })
-      .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications")
+      .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications,theme_mode")
       .single();
     if (preferencesError) throw preferencesError;
     return json({ success: true, profile: { ...saved, ...preferences } });
