@@ -589,3 +589,8 @@ html.kb-open .toast { bottom: 76px; }
   .profile-tab-content { padding: 15px 17px 20px; }
   .public-profile-card { width: min(390px, calc(100% - 24px)); border-radius: 26px; margin: auto; }
 }
+
+.profile-photo-remove { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0 auto; padding: 5px 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; color: #aebfdf; background: rgba(5,12,31,.3); font-size: 9px; cursor: pointer; }
+.profile-photo-remove:disabled { opacity: .45; cursor: wait; }
+.profile-own-status { display: inline-flex; align-items: center; gap: 6px; position: relative; z-index: 1; margin-top: 7px; color: #83efb3; font-size: 10px; }
+.profile-own-status i { width: 6px; height: 6px; border-radius: 50%; background: #27e68b; box-shadow: 0 0 8px #27e68b; }
