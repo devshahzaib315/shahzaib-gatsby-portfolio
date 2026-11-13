@@ -804,13 +804,13 @@ function App() {
       const { error: uploadError } = await supabase.storage.from('voice-messages').upload(path, voicePreview.blob, { contentType: mime, upsert: false, cacheControl: '3600' });
       if (uploadError) throw uploadError;
       const durationMs = Math.min(300000, Math.max(1, Math.round(voicePreview.durationMs)));
+      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(path, 86400);
+      if (signedError) throw signedError;
       const { data: inserted, error: insertError } = await supabase.from('messages').insert({
         user_id: session.user.id, nickname: profile.nickname, body: 'Voice message',
         avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs
       }).select('*').single();
       if (insertError) throw insertError;
-      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(path, 86400);
-      if (signedError) throw signedError;
       setMessages(prev => prev.some(row => row.id === inserted.id) ? prev : [...prev, { ...inserted, audio_url: signed.signedUrl }]);
       nearBottom.current = true;
       discardVoicePreview();
