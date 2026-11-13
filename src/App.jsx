@@ -228,7 +228,8 @@ function App() {
   useEffect(() => {
     if (view !== 'chat' || !session) return;
     loadChat();
-    const channel = supabase.channel('shahzaib-room-live', { config: { presence: { key: myId } } })
+    const presenceKey = `${myId}:${crypto.randomUUID()}`;
+    const channel = supabase.channel('shahzaib-room-live', { config: { presence: { key: presenceKey } } })
       .on('presence', { event: 'sync' }, () => {
         const presence = channel.presenceState();
         const rows = Object.values(presence).flat();
@@ -303,7 +304,7 @@ function App() {
       profile_visibility: profile?.profileVisibility || 'members',
       online_at: new Date().toISOString()
     });
-  }, [profile?.nickname, profile?.username, profile?.avatar, profile?.showOnlineStatus, view, session]);
+  }, [profile?.nickname, profile?.username, profile?.avatar, profile?.showOnlineStatus, profile?.profileVisibility, view, session]);
 
   // If the owner removes someone, their next check fails and they are sent back to the entry screen.
   useEffect(() => {
@@ -495,6 +496,8 @@ function App() {
 
   function openProfileSettings(tab = 'profile') {
     setProfileDraft({ ...PROFILE_DEFAULTS, ...profile });
+    setAccountUsername(profile?.username || '');
+    setAccountEmail(session?.user?.email || accountEmail);
     setProfileTab(tab);
     setProfileOpen(true);
     setError('');
@@ -837,7 +840,7 @@ function App() {
       <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group · {onlineMembers.length} online</small></div></div><span className="live-pill"><i/> LIVE</span></div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
@@ -869,6 +872,7 @@ function App() {
             <button type="button" className="profile-photo-button" aria-label="Change profile photo" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={17}/></button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeDp}/>
           </div>
+          {profileDraft?.avatar && <button type="button" className="profile-photo-remove" disabled={dpBusy} onClick={removeDp}><Trash2 size={12}/> Remove photo</button>}
           <h2>{profileDraft?.nickname || me}</h2>
           <p>@{profileDraft?.username || profile?.username || 'username'}</p>
           {profileDraft?.bio && <div className="profile-current-bio">{profileDraft.bio}</div>}
@@ -880,7 +884,7 @@ function App() {
         </nav>
         <div className="profile-tab-content">
           {profileTab === 'profile' && <form className="profile-edit-form" onSubmit={saveMemberProfile}>
-            <div className="profile-section-heading"><h3>Edit Profile</h3><span>Visible to room members</span></div>
+            <div className="profile-section-heading"><h3>Edit Profile</h3><span>{profileDraft?.profileVisibility === 'private' ? 'Private profile' : 'Visible to room members'}</span></div>
             <label>Display name</label>
             <input value={profileDraft?.nickname || ''} onChange={e => updateProfileDraft('nickname', e.target.value.slice(0,28))} placeholder="Your name" maxLength="28" required/>
             <label>Username</label>
