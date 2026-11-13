@@ -11,8 +11,19 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "");
     if (!token) return json({ error: "Please sign in first." }, 401);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: { user }, error: userError } = await admin.auth.getUser(token);
-    if (userError || !user) return json({ error: "Please sign in first." }, 401);
+    // Validate the signed JWT claims, then load the user by its subject.
+    // This avoids a live-session lookup failing after an anonymous session is rotated.
+    const { data: claimsData, error: claimsError } = await admin.auth.getClaims(token);
+    const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : "";
+    if (claimsError || !userId) {
+      console.error("account-credentials JWT verification failed:", claimsError?.message || "missing subject");
+      return json({ error: "Your login session could not be verified. Please sign in again." }, 401);
+    }
+    const { data: userResult, error: userLookupError } = await admin.auth.admin.getUserById(userId);
+    if (userLookupError || !userResult?.user) {
+      console.error("account-credentials user lookup failed:", userLookupError?.message || "user missing");
+      return json({ error: "Your account could not be found. Please sign in again." }, 401);
+    }
 
     const { username, email, password } = await req.json();
     const cleanUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
@@ -21,20 +32,20 @@ Deno.serve(async (req) => {
     if (cleanEmail.length > 254 || !emailRe.test(cleanEmail)) return json({ error: "Enter a valid email address." }, 400);
     if (typeof password !== "string" || password.length < 8) return json({ error: "Password must be at least 8 characters long." }, 400);
 
-    const { data: member, error: memberError } = await admin.from("room_members").select("user_id").eq("user_id", user.id).maybeSingle();
+    const { data: member, error: memberError } = await admin.from("room_members").select("user_id").eq("user_id", userId).maybeSingle();
     if (memberError) throw memberError;
     if (!member) return json({ error: "Activate your room membership before setting up login." }, 403);
 
     const { data: usernameConflict, error: usernameError } = await admin.from("room_members").select("user_id").eq("username", cleanUsername).maybeSingle();
     if (usernameError) throw usernameError;
-    if (usernameConflict && usernameConflict.user_id !== user.id) return json({ error: "That username is already taken." }, 409);
+    if (usernameConflict && usernameConflict.user_id !== userId) return json({ error: "That username is already taken." }, 409);
 
     const { data: emailConflict, error: emailError } = await admin.from("room_members").select("user_id").eq("email", cleanEmail).maybeSingle();
     if (emailError) throw emailError;
-    if (emailConflict && emailConflict.user_id !== user.id) return json({ error: "That email address is already in use." }, 409);
+    if (emailConflict && emailConflict.user_id !== userId) return json({ error: "That email address is already in use." }, 409);
 
     // Admin update bypasses the confirmation-email flow that caused Supabase's email rate limit.
-    const { error: authUpdateError } = await admin.auth.admin.updateUserById(user.id, {
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
       email: cleanEmail,
       password,
       email_confirm: true
@@ -44,7 +55,7 @@ Deno.serve(async (req) => {
       throw authUpdateError;
     }
 
-    const { error: updateError } = await admin.from("room_members").update({ username: cleanUsername, email: cleanEmail }).eq("user_id", user.id);
+    const { error: updateError } = await admin.from("room_members").update({ username: cleanUsername, email: cleanEmail }).eq("user_id", userId);
     if (updateError) {
       if (updateError.code === "23505") return json({ error: "That username or email is already in use." }, 409);
       throw updateError;
