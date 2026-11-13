@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, configured } from './supabase';
-import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save } from 'lucide-react';
+import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save, Mic, Play, Pause, X, Check } from 'lucide-react';
 
 const BASE = import.meta.env.VITE_SUPABASE_URL;
 const FN = `${BASE}/functions/v1`;
@@ -96,9 +96,45 @@ function profileFromRow(row) {
 }
 
 // Memoised: typing in the message box no longer re-renders (or re-parses) the whole conversation.
+function voiceTime(seconds) {
+  const value = Math.max(0, Math.floor(Number(seconds) || 0));
+  return String(Math.floor(value / 60)).padStart(2, '0') + ':' + String(value % 60).padStart(2, '0');
+}
+
+const VoiceMessagePlayer = memo(function VoiceMessagePlayer({ src, durationMs = 0, compact = false }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [actualDuration, setActualDuration] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const duration = actualDuration || Math.max(1, Math.ceil((durationMs || 0) / 1000));
+  const progress = duration ? Math.min(100, current / duration * 100) : 0;
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio || failed) return;
+    if (audio.paused) {
+      try { await audio.play(); } catch (_error) { setFailed(true); }
+    } else audio.pause();
+  }
+  function seek(value) {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.duration)) { audio.currentTime = Number(value); setCurrent(Number(value)); }
+  }
+  return <div className={'voice-message-player' + (compact ? ' compact' : '') + (failed ? ' failed' : '')}>
+    <audio ref={audioRef} src={src || undefined} preload="metadata" onTimeUpdate={e => setCurrent(e.currentTarget.currentTime || 0)} onLoadedMetadata={e => { if (Number.isFinite(e.currentTarget.duration)) setActualDuration(e.currentTarget.duration); }} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setCurrent(0); if (audioRef.current) audioRef.current.currentTime = 0; }} onError={() => setFailed(true)} />
+    <button type="button" className="voice-play-button" onClick={togglePlayback} disabled={!src || failed} aria-label={playing ? 'Pause voice message' : 'Play voice message'}>{playing ? <Pause size={17} fill="currentColor"/> : <Play size={17} fill="currentColor"/>}</button>
+    <div className="voice-player-main">
+      <div className="voice-waveform" aria-hidden="true">{Array.from({ length: 30 }, (_item, i) => <i key={i} className={i / 30 * 100 <= progress ? 'heard' : ''} style={{ height: (7 + ((i * 17 + 11) % 19)) + 'px' }}/>)}</div>
+      <input className="voice-seek" type="range" min="0" max={duration} step="0.1" value={Math.min(current, duration)} onChange={e => seek(e.target.value)} disabled={!src || failed} aria-label="Seek voice message" style={{ '--voice-progress': progress + '%' }}/>
+      <div className="voice-player-time"><span>{voiceTime(current)}</span><span>{failed ? 'Unavailable' : voiceTime(duration)}</span></div>
+    </div>
+    <Mic className="voice-player-mic" size={15}/>
+  </div>;
+});
+
 const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me, myId, reactions = [], onReact, reactionBusy, isOnline, onOpenProfile }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body), [mine, me, m.body]);
-  const big = useMemo(() => emojiOnly(m.body), [m.body]);
+  const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const summary = useMemo(() => REACTION_OPTIONS.flatMap(reaction => {
     const matches = reactions.filter(row => row.reaction === reaction);
@@ -110,7 +146,7 @@ const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, d
       <div className="avatar-slot">{!grouped && <button type="button" className="message-profile-avatar" aria-label={'View ' + m.nickname + ' profile'} onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}><Avatar name={m.nickname} url={dp}/>{isOnline && <i className="avatar-online-dot"/>}</button>}</div>
       <div className="message-content">
         {!grouped && <div className="message-meta"><button type="button" className="message-profile-name" onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}>{mine ? 'You' : m.nickname}</button>{isOnline && <i className="name-online-dot" title="Online"/>}<time>{timeOf(m.created_at)}</time></div>}
-        <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body} pattern={pattern} me={me}/></div>
+        {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
         <div className="message-reaction-row">
           {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
           <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
@@ -157,6 +193,16 @@ function App() {
   const [reactions, setReactions] = useState([]);
   const [reactionBusy, setReactionBusy] = useState({});
   const [message, setMessage] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voicePreview, setVoicePreview] = useState(null);
+  const [voiceSending, setVoiceSending] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const voiceChunksRef = useRef([]);
+  const voiceStartedAtRef = useRef(0);
+  const cancelVoiceRef = useRef(false);
+  const voicePreviewUrlRef = useRef(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const typingChannelRef = useRef(null);
   const typingTimerRef = useRef(null);
@@ -177,6 +223,26 @@ function App() {
   const standalone = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
   const me = profile?.nickname || '';
   const myId = session?.user?.id;
+
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - voiceStartedAtRef.current) / 1000);
+      setRecordingSeconds(elapsed);
+      if (elapsed >= 300) {
+        setToast('Maximum voice message length is 5 minutes.');
+        stopVoiceRecording();
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+    if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+  }, []);
 
   useEffect(() => {
     if (!configured) return;
@@ -239,10 +305,15 @@ function App() {
         const visibleIds = [...new Set(rows.filter(item => item?.user_id && item.show_online_status !== false && item.profile_visibility !== 'private').map(item => item.user_id))];
         setOnlineMembers(visibleIds);
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        setMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async payload => {
+        let incoming = payload.new;
+        if (incoming.message_type === 'voice' && incoming.audio_path) {
+          const { data: signed } = await supabase.storage.from('voice-messages').createSignedUrl(incoming.audio_path, 86400);
+          incoming = { ...incoming, audio_url: signed?.signedUrl || null };
+        }
+        setMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
         if (profile?.pushNotifications && payload.new.user_id !== myId && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-          try { new Notification(`${payload.new.nickname || 'New message'} · Shahzaib Room`, { body: String(payload.new.body || '').slice(0, 120), icon: payload.new.avatar_url || '/icon-192.png' }); } catch (_err) {}
+          try { new Notification(`${payload.new.nickname || 'New message'} · Shahzaib Room`, { body: payload.new.message_type === 'voice' ? 'Sent a voice message' : String(payload.new.body || '').slice(0, 120), icon: payload.new.avatar_url || '/icon-192.png' }); } catch (_err) {}
         }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
@@ -377,7 +448,12 @@ function App() {
     const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at').limit(200);
     if (messagesError) { setToast(messagesError.message); return; }
     const rows = data || [];
-    setMessages(rows);
+    const hydratedRows = await Promise.all(rows.map(async row => {
+      if (row.message_type !== 'voice' || !row.audio_path) return row;
+      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400);
+      return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null };
+    }));
+    setMessages(hydratedRows);
     const ids = rows.map(row => row.id);
     if (ids.length) {
       const { data: reactionRows, error: reactionsError } = await supabase.from('message_reactions').select('*').in('message_id', ids);
@@ -651,6 +727,100 @@ function App() {
     } else publishTyping(false);
   }
 
+  async function startVoiceRecording() {
+    if (recording || voicePreview || voiceSending) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setToast('Voice recording is not supported in this browser. Try a recent version of Chrome or Safari.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const formats = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm', 'audio/aac'];
+      const mimeType = formats.find(type => MediaRecorder.isTypeSupported?.(type));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      voiceChunksRef.current = [];
+      cancelVoiceRef.current = false;
+      voiceStartedAtRef.current = Date.now();
+      recorder.ondataavailable = event => { if (event.data?.size) voiceChunksRef.current.push(event.data); };
+      recorder.onerror = () => { setToast('Recording failed. Please try again.'); setRecording(false); stream.getTracks().forEach(track => track.stop()); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        setRecording(false);
+        if (cancelVoiceRef.current) { voiceChunksRef.current = []; setRecordingSeconds(0); return; }
+        const type = recorder.mimeType || voiceChunksRef.current[0]?.type || 'audio/webm';
+        const blob = new Blob(voiceChunksRef.current, { type });
+        const durationMs = Math.min(300000, Math.max(1, Date.now() - voiceStartedAtRef.current));
+        voiceChunksRef.current = [];
+        if (!blob.size) { setToast('No audio was recorded. Please try again.'); return; }
+        const url = URL.createObjectURL(blob);
+        voicePreviewUrlRef.current = url;
+        setVoicePreview({ blob, url, durationMs, mimeType: type });
+      };
+      recorder.start(250);
+      setRecordingSeconds(0);
+      setRecording(true);
+    } catch (err) {
+      setToast(err.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow microphone access and try again.' : (err.message || 'Could not start the microphone.'));
+    }
+  }
+
+  function stopVoiceRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+  }
+
+  function cancelVoiceRecording() {
+    cancelVoiceRef.current = true;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    else {
+      mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+      setRecording(false);
+      setRecordingSeconds(0);
+    }
+  }
+
+  function discardVoicePreview() {
+    if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+    voicePreviewUrlRef.current = null;
+    setVoicePreview(null);
+  }
+
+  async function sendVoiceMessage() {
+    if (!voicePreview || !session || voiceSending) return;
+    if (voicePreview.blob.size > 10 * 1024 * 1024) { setToast('This recording is too large. Please record a shorter voice message.'); return; }
+    setVoiceSending(true);
+    let path = null;
+    try {
+      const mime = (voicePreview.mimeType || voicePreview.blob.type || 'audio/webm').split(';')[0].toLowerCase();
+      const extension = ({ 'audio/webm':'webm', 'audio/ogg':'ogg', 'audio/mp4':'m4a', 'audio/aac':'aac', 'audio/mpeg':'mp3', 'audio/wav':'wav' })[mime];
+      if (!extension) throw new Error('This audio format is not supported. Please use Chrome or Safari.');
+      path = session.user.id + '/' + crypto.randomUUID() + '.' + extension;
+      const { error: uploadError } = await supabase.storage.from('voice-messages').upload(path, voicePreview.blob, { contentType: mime, upsert: false, cacheControl: '3600' });
+      if (uploadError) throw uploadError;
+      const durationMs = Math.min(300000, Math.max(1, Math.round(voicePreview.durationMs)));
+      const { data: inserted, error: insertError } = await supabase.from('messages').insert({
+        user_id: session.user.id, nickname: profile.nickname, body: 'Voice message',
+        avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs
+      }).select('*').single();
+      if (insertError) throw insertError;
+      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(path, 86400);
+      if (signedError) throw signedError;
+      setMessages(prev => prev.some(row => row.id === inserted.id) ? prev : [...prev, { ...inserted, audio_url: signed.signedUrl }]);
+      nearBottom.current = true;
+      discardVoicePreview();
+      setToast('Voice message sent.');
+    } catch (err) {
+      if (path) await supabase.storage.from('voice-messages').remove([path]);
+      setToast(err.message || 'Could not send the voice message.');
+    } finally { setVoiceSending(false); }
+  }
+
   async function sendMessage(e) {
     e.preventDefault(); if (!message.trim() || !session) return;
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
@@ -768,6 +938,8 @@ function App() {
 
   async function copy(text) { await navigator.clipboard.writeText(text); setToast('Copied to clipboard.'); }
   async function leave() {
+    if (recording) cancelVoiceRecording();
+    if (voicePreviewUrlRef.current) discardVoicePreview();
     localStorage.removeItem('sr-profile'); setProfile(null); setProfileDraft(null); setMemberProfiles({}); setOnlineMembers([]); setProfileCard(null); setProfileCardOpen(false); setMessages([]); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
     await supabase.auth.signOut();
   }
@@ -869,10 +1041,23 @@ function App() {
         {!atBottom && <button type="button" className="to-bottom glass" aria-label="Scroll to latest messages" onClick={() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })}><ChevronDown size={20}/></button>}
         {suggestions.length > 0 && <div className="suggest glass">{suggestions.map(n => <button type="button" key={n} onMouseDown={e => e.preventDefault()} onClick={() => pickMention(n)}><Avatar name={n} cls="sm"/>{n}</button>)}</div>}
         {pickerOpen && <div className="picker glass">{EMOJIS.map(em => <button type="button" key={em} onMouseDown={e => e.preventDefault()} onClick={() => addEmoji(em)}><Emoji char={em}/></button>)}</div>}
+        {recording && <div className="voice-recording-panel glass">
+          <span className="voice-recording-indicator"><i/> RECORDING</span>
+          <b>{voiceTime(recordingSeconds)}</b>
+          <div className="voice-recording-meter"><i/></div>
+          <button type="button" className="voice-cancel-button" onClick={cancelVoiceRecording} aria-label="Cancel recording"><X size={17}/> Cancel</button>
+          <button type="button" className="voice-stop-button" onClick={stopVoiceRecording} aria-label="Stop recording"><Check size={17}/> Done</button>
+        </div>}
+        {!recording && voicePreview && <div className="voice-preview-panel glass">
+          <VoiceMessagePlayer src={voicePreview.url} durationMs={voicePreview.durationMs} compact/>
+          <button type="button" className="voice-discard-button" onClick={discardVoicePreview} disabled={voiceSending} aria-label="Discard voice message"><X size={18}/></button>
+          <button type="button" className="voice-send-button" onClick={sendVoiceMessage} disabled={voiceSending} aria-label="Send voice message">{voiceSending ? 'Sending…' : <><Send size={17}/> Send</>}</button>
+        </div>}
         <form className="composer glass" onSubmit={sendMessage}>
-          <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)}><Smile size={20}/></button>
-          <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send"/>
-          <button className="send" disabled={!message.trim()} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
+          <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
+          <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
+          <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending || !!message.trim()} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
+          <button className="send" disabled={!message.trim() || recording || !!voicePreview} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
         </form>
       </div>
     </section></main>}
