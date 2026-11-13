@@ -175,8 +175,8 @@ const MessageRow = memo(function MessageRow({
       <div className="avatar-slot">{!grouped && <button type="button" className="message-profile-avatar" aria-label={'View ' + m.nickname + ' profile'} onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}><Avatar name={m.nickname} url={dp}/>{isOnline && <i className="avatar-online-dot"/>}</button>}</div>
       <div className="message-content">
         {!grouped && <div className="message-meta"><button type="button" className="message-profile-name" onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}>{mine ? 'You' : m.nickname}</button>{isOnline && <i className="name-online-dot" title="Online"/>}<time>{timeOf(m.created_at)}</time>{m.edited_at && <span className="message-edited-label">edited</span>}</div>}
-        {m.reply_to_id && replyPreview && <button type="button" className="message-reply-preview" onClick={() => document.getElementById(`message-${m.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-          <span><b>{m.reply_to_nickname || 'Member'}</b><small>{replyPreview}</small></span>
+        {replyPreview && <button type="button" className="message-reply-preview" disabled={!m.reply_to_id} onClick={() => document.getElementById(`message-${m.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+          <span><b>{m.reply_to_nickname || 'Member'}</b><small>{m.reply_to_id ? replyPreview : 'Original message deleted · ' + replyPreview}</small></span>
         </button>}
         {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
         <div className="message-reaction-row">
@@ -566,7 +566,7 @@ function App() {
   }
 
   async function markMessageRead(messageId) {
-    if (!myId || !messageId) return;
+    if (!myId || !messageId || document.visibilityState !== 'visible') return;
     const { error: insertError } = await supabase.from('message_receipts')
       .upsert({ message_id: messageId, user_id: myId }, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
     if (insertError) { setToast('Could not mark message as read: ' + insertError.message); return; }
@@ -666,7 +666,6 @@ function App() {
 
   function openMessageInfo(messageId) {
     setMessageInfoId(messageId);
-    setReceipts(current => current);
   }
 
   function saveProfile(p) { localStorage.setItem('sr-profile', JSON.stringify(p)); setProfile(p); }
@@ -1034,7 +1033,7 @@ function App() {
     if (editTarget) {
       try {
         const { data, error: editError } = await supabase.from('messages')
-          .update({ body, edited_at: new Date().toISOString() })
+          .update({ body })
           .eq('id', editTarget.id).eq('user_id', myId).select('*').single();
         if (editError) throw editError;
         setMessages(prev => prev.map(row => String(row.id) === String(data.id) ? { ...row, ...data } : row));
@@ -1212,6 +1211,7 @@ function App() {
   const messageInfoReceipts = messageInfo ? receipts.filter(row => String(row.message_id) === String(messageInfo.id)) : [];
   const messageInfoDelivered = messageInfoReceipts.slice().sort((a,b) => new Date(a.delivered_at) - new Date(b.delivered_at));
   const messageInfoRead = messageInfoReceipts.filter(row => !!row.read_at).sort((a,b) => new Date(a.read_at) - new Date(b.read_at));
+  const messageInfoPending = messageInfoDelivered.filter(row => !row.read_at);
 
 
   if (!configured) return <main className="setup"><div className="setup-card glass"><Sparkles size={30}/><h1>Shahzaib Room</h1><h2>One quick setup required</h2><p>The Supabase project credentials are not configured yet. Follow the step-by-step setup in README.md and add the environment variables in Vercel.</p><code>VITE_SUPABASE_URL<br/>VITE_SUPABASE_ANON_KEY</code></div></main>;
@@ -1538,12 +1538,12 @@ function App() {
             <div><b>Delivered {messageInfoDelivered.length ? `· ${messageInfoDelivered.length}` : ''}</b><small>{messageInfoDelivered.length ? messageDateTime(messageInfoDelivered[0].delivered_at) : 'Waiting for recipients'}</small></div>
           </div>
           <div className="message-info-recipients">
-            {messageInfoDelivered.map(receipt => <div className="message-info-recipient" key={receipt.user_id}>
+            {messageInfoPending.map(receipt => <div className="message-info-recipient" key={receipt.user_id}>
               <Avatar name={memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Member'} url={memberProfiles[receipt.user_id]?.avatar_url} cls="sm"/>
               <div><b>{memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Room member'}</b><small>Delivered · {messageDateTime(receipt.delivered_at)}</small></div>
               <span className={receipt.read_at ? 'receipt-read-badge' : 'receipt-unread-badge'}>{receipt.read_at ? 'READ' : 'DELIVERED'}</span>
             </div>)}
-            {!messageInfoDelivered.length && <p className="message-info-empty">No delivery receipts yet.</p>}
+            {!messageInfoPending.length && <p className="message-info-empty">{messageInfoRead.length ? 'All delivered recipients have read this message.' : 'No delivery receipts yet.'}</p>}
           </div>
           <div className="message-info-event read">
             <span className="message-info-check"><CheckCheck size={19}/></span>
