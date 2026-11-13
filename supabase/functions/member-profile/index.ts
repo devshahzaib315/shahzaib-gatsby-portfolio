@@ -30,6 +30,30 @@ Deno.serve(async (req) => {
     if (!member || member.is_banned) return json({ error: "Active room membership is required." }, 403);
 
     const body = await req.json();
+    if (body.action === "load") {
+      const [{ data: publicProfile, error: profileError }, { data: preferences, error: preferencesError }] = await Promise.all([
+        admin.from("member_profiles")
+          .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at")
+          .eq("user_id", userId).maybeSingle(),
+        admin.from("member_preferences")
+          .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications")
+          .eq("user_id", userId).maybeSingle()
+      ]);
+      if (profileError) throw profileError;
+      if (preferencesError) throw preferencesError;
+      if (!publicProfile) return json({ error: "Your profile could not be found." }, 404);
+      return json({
+        success: true,
+        profile: {
+          ...publicProfile,
+          data_saver: preferences?.data_saver === true,
+          autoplay_media: preferences?.autoplay_media !== false,
+          hide_sensitive_content: preferences?.hide_sensitive_content !== false,
+          push_notifications: preferences?.push_notifications === true
+        }
+      });
+    }
+
     const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
     const displayName = typeof body.display_name === "string" ? body.display_name.trim().slice(0, 28) : "";
     const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 240) : "";
@@ -70,23 +94,31 @@ Deno.serve(async (req) => {
       bio,
       show_online_status: showOnlineStatus,
       profile_visibility: profileVisibility,
-      data_saver: dataSaver,
-      autoplay_media: autoplayMedia,
-      hide_sensitive_content: hideSensitiveContent,
-      push_notifications: pushNotifications,
       updated_at: new Date().toISOString()
     };
     if (avatarUrl !== undefined) profileRow.avatar_url = avatarUrl;
 
     const { data: saved, error: saveError } = await admin.from("member_profiles")
       .upsert(profileRow, { onConflict: "user_id" })
-      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,data_saver,autoplay_media,hide_sensitive_content,push_notifications,updated_at")
+      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at")
       .single();
     if (saveError) {
       if (saveError.code === "23505") return json({ error: "That username is already taken." }, 409);
       throw saveError;
     }
-    return json({ success: true, profile: saved });
+    const { data: preferences, error: preferencesError } = await admin.from("member_preferences")
+      .upsert({
+        user_id: userId,
+        data_saver: dataSaver,
+        autoplay_media: autoplayMedia,
+        hide_sensitive_content: hideSensitiveContent,
+        push_notifications: pushNotifications,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" })
+      .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications")
+      .single();
+    if (preferencesError) throw preferencesError;
+    return json({ success: true, profile: { ...saved, ...preferences } });
   } catch (error) {
     console.error("member-profile failed:", error instanceof Error ? error.message : "unknown error");
     return json({ error: "Profile could not be saved. Please try again." }, 500);
