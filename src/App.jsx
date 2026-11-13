@@ -287,6 +287,7 @@ function PasswordField({ value, onChange, placeholder, autoComplete, minLength, 
 
 function App() {
   const [session, setSession] = useState(null);
+  const authRefreshPromiseRef = useRef(null);
   const [profile, setProfile] = useState(() => { try { return JSON.parse(localStorage.getItem('sr-profile') || 'null'); } catch { return null; } });
   const [view, setView] = useState('gate');
   const [nickname, setNickname] = useState('');
@@ -380,9 +381,42 @@ function App() {
   useEffect(() => {
     if (!configured) return;
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === 'SIGNED_OUT') {
+        setLoginMode(true);
+        setView('gate');
+      }
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!configured) return;
+    let active = true;
+    const restoreForegroundSession = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!active) return;
+        if (!error && data?.session) setSession(data.session);
+        else if (!data?.session && session) {
+          setSession(null);
+          setLoginMode(true);
+          setView('gate');
+        }
+      } catch (_error) {
+        // The next protected action will show a clear re-login prompt if the refresh token is invalid.
+      }
+    };
+    window.addEventListener('focus', restoreForegroundSession);
+    document.addEventListener('visibilitychange', restoreForegroundSession);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', restoreForegroundSession);
+      document.removeEventListener('visibilitychange', restoreForegroundSession);
+    };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const h = e => { e.preventDefault(); setInstallEvt(e); };
@@ -599,6 +633,60 @@ function App() {
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
     nearBottom.current = near; setAtBottom(near);
   }
+  function isExpiredAuthError(error) {
+    const details = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''} ${error?.code || ''}`;
+    return error?.status === 401 || /jwt expired|invalid jwt|pgrst301|token expired|refresh_token_not_found|invalid refresh token/i.test(details);
+  }
+
+  async function ensureFreshSession(forceRefresh = false) {
+    if (authRefreshPromiseRef.current) return authRefreshPromiseRef.current;
+    const refreshTask = (async () => {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      let current = data?.session || null;
+      if (!current) {
+        throw Object.assign(new Error('Your login session has expired. Please sign in again.'), { code: 'SESSION_EXPIRED' });
+      }
+      const expiresSoon = !current.expires_at || current.expires_at * 1000 <= Date.now() + 90_000;
+      if (forceRefresh || expiresSoon) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed?.session) {
+          throw Object.assign(new Error('Your login session has expired. Please sign in again.'), { code: 'SESSION_EXPIRED', cause: refreshError });
+        }
+        current = refreshed.session;
+      }
+      setSession(current);
+      return current;
+    })();
+    authRefreshPromiseRef.current = refreshTask;
+    try {
+      return await refreshTask;
+    } finally {
+      if (authRefreshPromiseRef.current === refreshTask) authRefreshPromiseRef.current = null;
+    }
+  }
+
+  async function withFreshAuth(operation) {
+    let current = await ensureFreshSession();
+    let result = await operation(current);
+    if (isExpiredAuthError(result?.error)) {
+      current = await ensureFreshSession(true);
+      result = await operation(current);
+    }
+    if (isExpiredAuthError(result?.error)) {
+      throw Object.assign(new Error('Your login session has expired. Please sign in again.'), { code: 'SESSION_EXPIRED', cause: result.error });
+    }
+    return { ...result, activeSession: current };
+  }
+
+  async function recoverExpiredSession() {
+    try { await supabase.auth.signOut({ scope: 'local' }); } catch (_error) {}
+    setSession(null);
+    setLoginMode(true);
+    setView('gate');
+    setToast('Your session expired. Please sign in again. Your message was not sent.');
+  }
+
   async function ensureDelivered(messageRows) {
     if (!myId || !messageRows?.length) return;
     const incoming = messageRows.filter(row => row.user_id !== myId);
@@ -1032,7 +1120,7 @@ function App() {
   }
 
   async function sendVoiceMessage() {
-    if (!voicePreview || !session || voiceSending) return;
+    if (!voicePreview || voiceSending) return;
     if (voicePreview.blob.size > 10 * 1024 * 1024) { setToast('This recording is too large. Please record a shorter voice message.'); return; }
     setVoiceSending(true);
     let path = null;
@@ -1040,22 +1128,34 @@ function App() {
       const mime = (voicePreview.mimeType || voicePreview.blob.type || 'audio/webm').split(';')[0].toLowerCase();
       const extension = ({ 'audio/webm':'webm', 'audio/ogg':'ogg', 'audio/mp4':'m4a', 'audio/aac':'aac', 'audio/mpeg':'mp3', 'audio/wav':'wav' })[mime];
       if (!extension) throw new Error('This audio format is not supported. Please use Chrome or Safari.');
-      path = session.user.id + '/' + crypto.randomUUID() + '.' + extension;
-      const { error: uploadError } = await supabase.storage.from('voice-messages').upload(path, voicePreview.blob, { contentType: mime, upsert: false, cacheControl: '3600' });
+      const initialSession = await ensureFreshSession();
+      const senderId = initialSession.user.id;
+      path = senderId + '/' + crypto.randomUUID() + '.' + extension;
+      const { error: uploadError } = await withFreshAuth(activeSession => {
+        if (activeSession.user.id !== senderId) throw new Error('Your signed-in account changed. Please sign in again.');
+        return supabase.storage.from('voice-messages').upload(path, voicePreview.blob, { contentType: mime, upsert: false, cacheControl: '3600' });
+      });
       if (uploadError) throw uploadError;
       const durationMs = Math.min(300000, Math.max(1, Math.round(voicePreview.durationMs)));
-      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(path, 86400);
+      const { data: signed, error: signedError } = await withFreshAuth(activeSession => {
+        if (activeSession.user.id !== senderId) throw new Error('Your signed-in account changed. Please sign in again.');
+        return supabase.storage.from('voice-messages').createSignedUrl(path, 86400);
+      });
       if (signedError) throw signedError;
-      const { data: inserted, error: insertError } = await supabase.from('messages').insert({
-        user_id: session.user.id, nickname: profile.nickname, body: 'Voice message',
-        avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs,
-        ...(replyingTo ? {
-          reply_to_id: replyingTo.id,
-          reply_to_body: (replyingTo.message_type === 'voice' ? 'Voice message' : (replyingTo.body || '')).slice(0, 2000),
-          reply_to_nickname: (replyingTo.nickname || 'Member').slice(0, 28),
-          reply_to_type: replyingTo.message_type || 'text'
-        } : {})
-      }).select('*').single();
+      const replyFields = replyingTo ? {
+        reply_to_id: replyingTo.id,
+        reply_to_body: (replyingTo.message_type === 'voice' ? 'Voice message' : (replyingTo.body || '')).slice(0, 2000),
+        reply_to_nickname: (replyingTo.nickname || 'Member').slice(0, 28),
+        reply_to_type: replyingTo.message_type || 'text'
+      } : {};
+      const { data: inserted, error: insertError } = await withFreshAuth(activeSession => {
+        if (activeSession.user.id !== senderId) throw new Error('Your signed-in account changed. Please sign in again.');
+        return supabase.from('messages').insert({
+          user_id: senderId, nickname: profile.nickname, body: 'Voice message',
+          avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs,
+          ...replyFields
+        }).select('*').single();
+      });
       if (insertError) throw insertError;
       setMessages(prev => prev.some(row => row.id === inserted.id) ? prev : [...prev, { ...inserted, audio_url: signed.signedUrl }]);
       nearBottom.current = true;
@@ -1063,53 +1163,62 @@ function App() {
       setReplyingTo(null);
       setToast('Voice message sent.');
     } catch (err) {
-      if (path) await supabase.storage.from('voice-messages').remove([path]);
-      setToast(err.message || 'Could not send the voice message.');
+      if (path) {
+        try { await supabase.storage.from('voice-messages').remove([path]); } catch (_cleanupError) {}
+      }
+      if (err?.code === 'SESSION_EXPIRED' || isExpiredAuthError(err)) {
+        await recoverExpiredSession();
+      } else {
+        setToast(err.message || 'Could not send the voice message.');
+      }
     } finally { setVoiceSending(false); }
   }
 
   async function sendMessage(e) {
     e.preventDefault();
-    if (!message.trim() || !session || messageActionBusy) return;
+    if (!message.trim() || messageActionBusy) return;
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     publishTyping(false);
     const body = message.trim().slice(0, 2000);
     const replyTarget = replyingTo;
     const editTarget = editingMessage;
-    setMessage('');
     setPickerOpen(false);
-    inputRef.current?.focus();
-    nearBottom.current = true;
-    if (editTarget) {
-      try {
-        const { data, error: editError } = await supabase.from('messages')
+    try {
+      if (editTarget) {
+        const { data, error: editError } = await withFreshAuth(() => supabase.from('messages')
           .update({ body })
-          .eq('id', editTarget.id).eq('user_id', myId).select('*').single();
+          .eq('id', editTarget.id).eq('user_id', myId).select('*').single());
         if (editError) throw editError;
         setMessages(prev => prev.map(row => String(row.id) === String(data.id) ? { ...row, ...data } : row));
         setEditingMessage(null);
+        setMessage('');
+        inputRef.current?.focus();
         setToast('Message updated.');
-      } catch (err) {
-        setMessage(body);
-        setToast(err.message || 'Could not edit this message.');
+        return;
       }
-      return;
-    }
-    setReplyingTo(null);
-    const replyFields = replyTarget ? {
-      reply_to_id: replyTarget.id,
-      reply_to_body: (replyTarget.message_type === 'voice' ? 'Voice message' : (replyTarget.body || '')).slice(0, 2000),
-      reply_to_nickname: (replyTarget.nickname || 'Member').slice(0, 28),
-      reply_to_type: replyTarget.message_type || 'text'
-    } : {};
-    const { error: sendError } = await supabase.from('messages').insert({
-      user_id: session.user.id, nickname: profile.nickname, body,
-      avatar_url: profile.avatar || null, message_type: 'text', ...replyFields
-    });
-    if (sendError) {
-      setToast(sendError.message);
+      const replyFields = replyTarget ? {
+        reply_to_id: replyTarget.id,
+        reply_to_body: (replyTarget.message_type === 'voice' ? 'Voice message' : (replyTarget.body || '')).slice(0, 2000),
+        reply_to_nickname: (replyTarget.nickname || 'Member').slice(0, 28),
+        reply_to_type: replyTarget.message_type || 'text'
+      } : {};
+      const { error: sendError } = await withFreshAuth(activeSession => supabase.from('messages').insert({
+        user_id: activeSession.user.id, nickname: profile.nickname, body,
+        avatar_url: profile.avatar || null, message_type: 'text', ...replyFields
+      }));
+      if (sendError) throw sendError;
+      setMessage('');
+      setReplyingTo(null);
+      inputRef.current?.focus();
+      nearBottom.current = true;
+    } catch (err) {
       setMessage(body);
       if (replyTarget) setReplyingTo(replyTarget);
+      if (err?.code === 'SESSION_EXPIRED' || isExpiredAuthError(err)) {
+        await recoverExpiredSession();
+      } else {
+        setToast(err.message || 'Message could not be sent. Please try again.');
+      }
     }
   }
 
@@ -1222,7 +1331,7 @@ function App() {
     if (recording) cancelVoiceRecording();
     if (voicePreviewUrlRef.current) discardVoicePreview();
     localStorage.removeItem('sr-profile'); setProfile(null); setProfileDraft(null); setMemberProfiles({}); setOnlineMembers([]); setProfileCard(null); setProfileCardOpen(false); setMessages([]); setReceipts([]); setReplyingTo(null); setEditingMessage(null); setMessageInfoId(null); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
   }
   async function installApp() {
     if (installEvt) { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); return; }
