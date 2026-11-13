@@ -734,6 +734,7 @@ function App() {
       return;
     }
     try {
+      setPickerOpen(false);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       const formats = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm', 'audio/aac'];
       const mimeType = formats.find(type => MediaRecorder.isTypeSupported?.(type));
@@ -744,7 +745,7 @@ function App() {
       cancelVoiceRef.current = false;
       voiceStartedAtRef.current = Date.now();
       recorder.ondataavailable = event => { if (event.data?.size) voiceChunksRef.current.push(event.data); };
-      recorder.onerror = () => { setToast('Recording failed. Please try again.'); setRecording(false); stream.getTracks().forEach(track => track.stop()); };
+      recorder.onerror = () => { cancelVoiceRef.current = true; setToast('Recording failed. Please try again.'); setRecording(false); stream.getTracks().forEach(track => track.stop()); };
       recorder.onstop = () => {
         stream.getTracks().forEach(track => track.stop());
         mediaStreamRef.current = null;
@@ -1056,7 +1057,7 @@ function App() {
         <form className="composer glass" onSubmit={sendMessage}>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
-          <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending || !!message.trim()} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
+          <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
           <button className="send" disabled={!message.trim() || recording || !!voicePreview} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
         </form>
       </div>
