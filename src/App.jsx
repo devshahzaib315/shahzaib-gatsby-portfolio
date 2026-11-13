@@ -253,7 +253,8 @@ function App() {
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
       if (password.length < 8) throw new Error('Password must be at least 8 characters long.');
       let current = session;
-      if (!current || current.user?.is_anonymous) {
+      const signedInEmail = (current?.user?.email || '').trim().toLowerCase();
+      if (!current || current.user?.is_anonymous || signedInEmail !== cleanEmail) {
         // Reuse an existing account when the email was registered before.
         // This lets a returning member restore membership with a fresh invitation code.
         const { data: existingLogin, error: existingLoginError } = await supabase.auth.signInWithPassword({
@@ -266,7 +267,7 @@ function App() {
           const invalidCredentials = existingLoginError?.code === 'invalid_credentials'
             || /invalid login credentials/i.test(existingLoginError?.message || '');
           if (!invalidCredentials && existingLoginError) throw existingLoginError;
-          if (!current) {
+          if (!current || !current.user || !current.user.is_anonymous) {
             const { data, error: authError } = await supabase.auth.signInAnonymously();
             if (authError) throw authError;
             current = data.session;
