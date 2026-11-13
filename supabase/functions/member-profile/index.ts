@@ -48,6 +48,9 @@ Deno.serve(async (req) => {
     const showOnlineStatus = typeof body.show_online_status === "boolean" ? body.show_online_status : true;
     const profileVisibility = body.profile_visibility === "private" ? "private" : "members";
     const dataSaver = typeof body.data_saver === "boolean" ? body.data_saver : false;
+    const autoplayMedia = typeof body.autoplay_media === "boolean" ? body.autoplay_media : true;
+    const hideSensitiveContent = typeof body.hide_sensitive_content === "boolean" ? body.hide_sensitive_content : true;
+    const pushNotifications = typeof body.push_notifications === "boolean" ? body.push_notifications : false;
 
     const memberUpdate: Record<string, unknown> = {
       username,
@@ -68,13 +71,16 @@ Deno.serve(async (req) => {
       show_online_status: showOnlineStatus,
       profile_visibility: profileVisibility,
       data_saver: dataSaver,
+      autoplay_media: autoplayMedia,
+      hide_sensitive_content: hideSensitiveContent,
+      push_notifications: pushNotifications,
       updated_at: new Date().toISOString()
     };
     if (avatarUrl !== undefined) profileRow.avatar_url = avatarUrl;
 
     const { data: saved, error: saveError } = await admin.from("member_profiles")
       .upsert(profileRow, { onConflict: "user_id" })
-      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,data_saver,updated_at")
+      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,data_saver,autoplay_media,hide_sensitive_content,push_notifications,updated_at")
       .single();
     if (saveError) {
       if (saveError.code === "23505") return json({ error: "That username is already taken." }, 409);
