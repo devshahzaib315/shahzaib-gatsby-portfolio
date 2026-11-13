@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, configured } from './supabase';
-import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save, Mic, Play, Pause, X, Check, Sun, Moon } from 'lucide-react';
+import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save, Mic, Play, Pause, X, Check, Sun, Moon, MoreHorizontal, Reply as ReplyIcon, Pencil, CheckCheck, Info } from 'lucide-react';
 
 const BASE = import.meta.env.VITE_SUPABASE_URL;
 const FN = `${BASE}/functions/v1`;
@@ -74,6 +74,7 @@ function dayLabel(d) {
 }
 const emojiOnly = body => body.replace(EMOJI_RE, '').trim() === '' && (body.match(EMOJI_RE) || []).length <= 3;
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const messageDateTime = iso => iso ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
 const PROFILE_DEFAULTS = {
   nickname: '', username: '', bio: '', avatar: null,
   showOnlineStatus: true, profileVisibility: 'members',
@@ -134,31 +135,73 @@ const VoiceMessagePlayer = memo(function VoiceMessagePlayer({ src, durationMs = 
   </div>;
 });
 
-const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me, myId, reactions = [], onReact, reactionBusy, isOnline, onOpenProfile }) {
-  const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body), [mine, me, m.body]);
+const MessageRow = memo(function MessageRow({
+  m, mine, grouped, newDay, label, dp, pattern, me, myId,
+  reactions = [], onReact, reactionBusy, isOnline, onOpenProfile,
+  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible
+}) {
+  const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body || ''), [mine, me, m.body]);
   const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const rowRef = useRef(null);
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
+  useEffect(() => {
+    if (mine || typeof IntersectionObserver === 'undefined') return;
+    const node = rowRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
+          observer.unobserve(node);
+          onVisibleRef.current?.(m.id);
+        }
+      });
+    }, { root: node.closest('.messages'), threshold: [0, 0.55, 1] });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [m.id, mine]);
   const summary = useMemo(() => REACTION_OPTIONS.flatMap(reaction => {
     const matches = reactions.filter(row => row.reaction === reaction);
     return matches.length ? [{ reaction, count: matches.length, mine: matches.some(row => row.user_id === myId) }] : [];
   }), [reactions, myId]);
+  const deliveredCount = receiptRows.length;
+  const readCount = receiptRows.filter(row => !!row.read_at).length;
+  const replyPreview = m.reply_to_type === 'voice' ? 'Voice message' : m.reply_to_body;
   return <>
     {newDay && <div className="day-sep"><span>{label}</span></div>}
-    <div className={"message-row " + (mine ? "mine " : "") + (grouped ? "grouped " : "") + (mentioned ? "mentioned" : "")}>
+    <div id={`message-${m.id}`} ref={rowRef} className={"message-row " + (mine ? "mine " : "") + (grouped ? "grouped " : "") + (mentioned ? "mentioned" : "")}>
       <div className="avatar-slot">{!grouped && <button type="button" className="message-profile-avatar" aria-label={'View ' + m.nickname + ' profile'} onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}><Avatar name={m.nickname} url={dp}/>{isOnline && <i className="avatar-online-dot"/>}</button>}</div>
       <div className="message-content">
-        {!grouped && <div className="message-meta"><button type="button" className="message-profile-name" onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}>{mine ? 'You' : m.nickname}</button>{isOnline && <i className="name-online-dot" title="Online"/>}<time>{timeOf(m.created_at)}</time></div>}
+        {!grouped && <div className="message-meta"><button type="button" className="message-profile-name" onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}>{mine ? 'You' : m.nickname}</button>{isOnline && <i className="name-online-dot" title="Online"/>}<time>{timeOf(m.created_at)}</time>{m.edited_at && <span className="message-edited-label">edited</span>}</div>}
+        {m.reply_to_id && replyPreview && <button type="button" className="message-reply-preview" onClick={() => document.getElementById(`message-${m.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+          <span><b>{m.reply_to_nickname || 'Member'}</b><small>{replyPreview}</small></span>
+        </button>}
         {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
         <div className="message-reaction-row">
           {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
           <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
           {pickerOpen && <div className="message-reaction-picker" role="group" aria-label="Choose a reaction">{REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setPickerOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction}><Emoji char={reaction}/></button>)}</div>}
         </div>
+        <div className="message-footer-row">
+          {mine && <button type="button" className={"message-receipt-indicator " + (readCount ? 'is-read' : '')} onClick={() => onOpenInfo(m.id)} title="Message info">
+            <CheckCheck size={14}/><span>{readCount ? `Seen by ${readCount}` : deliveredCount ? `Delivered to ${deliveredCount}` : 'Sent'}</span>
+          </button>}
+          <div className="message-actions">
+            <button type="button" className="message-more-button" aria-label="Message actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen(open => !open)}><MoreHorizontal size={16}/></button>
+            {actionsOpen && <div className="message-actions-menu">
+              <button type="button" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
+              <button type="button" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>
+              {mine && m.message_type === 'text' && <button type="button" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
+              {mine && <button type="button" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
+            </div>}
+          </div>
+        </div>
       </div>
     </div>
   </>;
 });
-
 
 function PasswordField({ value, onChange, placeholder, autoComplete, minLength, required = true, onKeyDown, disabled = false, name, id, className = '' }) {
   const [visible, setVisible] = useState(false);
@@ -227,6 +270,11 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [reactions, setReactions] = useState([]);
   const [reactionBusy, setReactionBusy] = useState({});
+  const [receipts, setReceipts] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [messageInfoId, setMessageInfoId] = useState(null);
+  const [messageActionBusy, setMessageActionBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -355,6 +403,7 @@ function App() {
           incoming = { ...incoming, audio_url: signed?.signedUrl || null };
         }
         setMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
+        if (incoming.user_id !== myId) ensureDelivered([incoming]);
         if (profile?.pushNotifications && payload.new.user_id !== myId && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
           try { new Notification(`${payload.new.nickname || 'New message'} · Shahzaib Room`, { body: payload.new.message_type === 'voice' ? 'Sent a voice message' : String(payload.new.body || '').slice(0, 120), icon: payload.new.avatar_url || '/icon-192.png' }); } catch (_err) {}
         }
@@ -362,6 +411,19 @@ function App() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)));
         setReactions(prev => prev.filter(row => String(row.message_id) !== String(payload.old.id)));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
+        setMessages(prev => prev.map(row => String(row.id) === String(payload.new.id) ? { ...row, ...payload.new } : row));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_receipts' }, payload => {
+        if (payload.eventType === 'DELETE') {
+          setReceipts(prev => prev.filter(row => !(String(row.message_id) === String(payload.old.message_id) && row.user_id === payload.old.user_id)));
+          return;
+        }
+        const row = payload.new;
+        if (row?.message_id && row?.user_id) {
+          setReceipts(prev => [...prev.filter(item => !(String(item.message_id) === String(row.message_id) && item.user_id === row.user_id)), row]);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, payload => {
         if (payload.eventType === 'DELETE') {
@@ -487,6 +549,36 @@ function App() {
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
     nearBottom.current = near; setAtBottom(near);
   }
+  async function ensureDelivered(messageRows) {
+    if (!myId || !messageRows?.length) return;
+    const incoming = messageRows.filter(row => row.user_id !== myId);
+    if (!incoming.length) return;
+    const payload = incoming.map(row => ({ message_id: row.id, user_id: myId }));
+    const { error: deliveryError } = await supabase.from('message_receipts')
+      .upsert(payload, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
+    if (deliveryError) { setToast('Could not update delivery status: ' + deliveryError.message); return; }
+    const ids = incoming.map(row => row.id);
+    const { data, error: receiptError } = await supabase.from('message_receipts')
+      .select('*').in('message_id', ids);
+    if (!receiptError && data) {
+      setReceipts(prev => [...prev.filter(row => !ids.includes(row.message_id)), ...data]);
+    }
+  }
+
+  async function markMessageRead(messageId) {
+    if (!myId || !messageId) return;
+    const { error: insertError } = await supabase.from('message_receipts')
+      .upsert({ message_id: messageId, user_id: myId }, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
+    if (insertError) { setToast('Could not mark message as read: ' + insertError.message); return; }
+    const { data, error: readError } = await supabase.from('message_receipts')
+      .update({ read_at: new Date().toISOString() })
+      .eq('message_id', messageId).eq('user_id', myId).is('read_at', null).select('*');
+    if (readError) { setToast('Could not update read status: ' + readError.message); return; }
+    if (data?.length) {
+      setReceipts(prev => [...prev.filter(row => !(row.message_id === messageId && row.user_id === myId)), ...data]);
+    }
+  }
+
   async function loadChat() {
     const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at').limit(200);
     if (messagesError) { setToast(messagesError.message); return; }
@@ -502,7 +594,14 @@ function App() {
       const { data: reactionRows, error: reactionsError } = await supabase.from('message_reactions').select('*').in('message_id', ids);
       if (reactionsError) setToast('Could not load message reactions: ' + reactionsError.message);
       else setReactions(reactionRows || []);
-    } else setReactions([]);
+      await ensureDelivered(rows);
+      const { data: receiptRows, error: receiptsError } = await supabase.from('message_receipts').select('*').in('message_id', ids);
+      if (receiptsError) setToast('Could not load message receipts: ' + receiptsError.message);
+      else setReceipts(receiptRows || []);
+    } else {
+      setReactions([]);
+      setReceipts([]);
+    }
     setTimeout(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, 50);
   }
 
@@ -524,6 +623,52 @@ function App() {
     } catch (err) { setToast(err.message || 'Could not save reaction.'); }
     finally { setReactionBusy(prev => ({ ...prev, [messageId]: false })); }
   }
+  function beginReply(target) {
+    setEditingMessage(null);
+    setReplyingTo(target);
+    inputRef.current?.focus();
+  }
+
+  function beginEdit(target) {
+    if (!target || target.user_id !== myId || target.message_type !== 'text') return;
+    setReplyingTo(null);
+    setEditingMessage(target);
+    setMessage(target.body || '');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function cancelMessageContext() {
+    setReplyingTo(null);
+    setEditingMessage(null);
+    setMessage('');
+  }
+
+  async function deleteMessage(target) {
+    if (!target || target.user_id !== myId || messageActionBusy) return;
+    if (!window.confirm('Delete this message for everyone in the room?')) return;
+    setMessageActionBusy(true);
+    try {
+      const { error: deleteError } = await supabase.from('messages').delete()
+        .eq('id', target.id).eq('user_id', myId);
+      if (deleteError) throw deleteError;
+      setMessages(prev => prev.filter(row => String(row.id) !== String(target.id)));
+      setReactions(prev => prev.filter(row => String(row.message_id) !== String(target.id)));
+      setReceipts(prev => prev.filter(row => String(row.message_id) !== String(target.id)));
+      if (target.message_type === 'voice' && target.audio_path) {
+        const { error: storageError } = await supabase.storage.from('voice-messages').remove([target.audio_path]);
+        if (storageError) setToast('Message deleted. Audio cleanup will be retried later.');
+        else setToast('Message deleted for everyone.');
+      } else setToast('Message deleted for everyone.');
+      if (String(editingMessage?.id) === String(target.id)) cancelMessageContext();
+    } catch (err) { setToast(err.message || 'Could not delete this message.'); }
+    finally { setMessageActionBusy(false); }
+  }
+
+  function openMessageInfo(messageId) {
+    setMessageInfoId(messageId);
+    setReceipts(current => current);
+  }
+
   function saveProfile(p) { localStorage.setItem('sr-profile', JSON.stringify(p)); setProfile(p); }
 
   async function joinRoom(e) {
@@ -854,12 +999,19 @@ function App() {
       if (signedError) throw signedError;
       const { data: inserted, error: insertError } = await supabase.from('messages').insert({
         user_id: session.user.id, nickname: profile.nickname, body: 'Voice message',
-        avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs
+        avatar_url: profile.avatar || null, message_type: 'voice', audio_path: path, audio_duration_ms: durationMs,
+        ...(replyingTo ? {
+          reply_to_id: replyingTo.id,
+          reply_to_body: (replyingTo.message_type === 'voice' ? 'Voice message' : (replyingTo.body || '')).slice(0, 2000),
+          reply_to_nickname: (replyingTo.nickname || 'Member').slice(0, 28),
+          reply_to_type: replyingTo.message_type || 'text'
+        } : {})
       }).select('*').single();
       if (insertError) throw insertError;
       setMessages(prev => prev.some(row => row.id === inserted.id) ? prev : [...prev, { ...inserted, audio_url: signed.signedUrl }]);
       nearBottom.current = true;
       discardVoicePreview();
+      setReplyingTo(null);
       setToast('Voice message sent.');
     } catch (err) {
       if (path) await supabase.storage.from('voice-messages').remove([path]);
@@ -868,14 +1020,48 @@ function App() {
   }
 
   async function sendMessage(e) {
-    e.preventDefault(); if (!message.trim() || !session) return;
+    e.preventDefault();
+    if (!message.trim() || !session || messageActionBusy) return;
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     publishTyping(false);
-    const body = message.trim().slice(0, 2000); setMessage(''); setPickerOpen(false);
-    inputRef.current?.focus(); // keep the phone keyboard open after sending
+    const body = message.trim().slice(0, 2000);
+    const replyTarget = replyingTo;
+    const editTarget = editingMessage;
+    setMessage('');
+    setPickerOpen(false);
+    inputRef.current?.focus();
     nearBottom.current = true;
-    const { error: sendError } = await supabase.from('messages').insert({ user_id: session.user.id, nickname: profile.nickname, body, avatar_url: profile.avatar || null });
-    if (sendError) { setToast(sendError.message); setMessage(body); }
+    if (editTarget) {
+      try {
+        const { data, error: editError } = await supabase.from('messages')
+          .update({ body, edited_at: new Date().toISOString() })
+          .eq('id', editTarget.id).eq('user_id', myId).select('*').single();
+        if (editError) throw editError;
+        setMessages(prev => prev.map(row => String(row.id) === String(data.id) ? { ...row, ...data } : row));
+        setEditingMessage(null);
+        setToast('Message updated.');
+      } catch (err) {
+        setMessage(body);
+        setToast(err.message || 'Could not edit this message.');
+      }
+      return;
+    }
+    setReplyingTo(null);
+    const replyFields = replyTarget ? {
+      reply_to_id: replyTarget.id,
+      reply_to_body: (replyTarget.message_type === 'voice' ? 'Voice message' : (replyTarget.body || '')).slice(0, 2000),
+      reply_to_nickname: (replyTarget.nickname || 'Member').slice(0, 28),
+      reply_to_type: replyTarget.message_type || 'text'
+    } : {};
+    const { error: sendError } = await supabase.from('messages').insert({
+      user_id: session.user.id, nickname: profile.nickname, body,
+      avatar_url: profile.avatar || null, message_type: 'text', ...replyFields
+    });
+    if (sendError) {
+      setToast(sendError.message);
+      setMessage(body);
+      if (replyTarget) setReplyingTo(replyTarget);
+    }
   }
 
   async function changeDp(e) { return changeProfilePhoto(e); }
@@ -986,7 +1172,7 @@ function App() {
   async function leave() {
     if (recording) cancelVoiceRecording();
     if (voicePreviewUrlRef.current) discardVoicePreview();
-    localStorage.removeItem('sr-profile'); setProfile(null); setProfileDraft(null); setMemberProfiles({}); setOnlineMembers([]); setProfileCard(null); setProfileCardOpen(false); setMessages([]); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
+    localStorage.removeItem('sr-profile'); setProfile(null); setProfileDraft(null); setMemberProfiles({}); setOnlineMembers([]); setProfileCard(null); setProfileCardOpen(false); setMessages([]); setReceipts([]); setReplyingTo(null); setEditingMessage(null); setMessageInfoId(null); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
     await supabase.auth.signOut();
   }
   async function installApp() {
@@ -1022,6 +1208,11 @@ function App() {
       return { m, newDay, grouped, label: newDay ? dayLabel(d) : null };
     });
   }, [messages]);
+  const messageInfo = messageInfoId ? messages.find(row => String(row.id) === String(messageInfoId)) : null;
+  const messageInfoReceipts = messageInfo ? receipts.filter(row => String(row.message_id) === String(messageInfo.id)) : [];
+  const messageInfoDelivered = messageInfoReceipts.slice().sort((a,b) => new Date(a.delivered_at) - new Date(b.delivered_at));
+  const messageInfoRead = messageInfoReceipts.filter(row => !!row.read_at).sort((a,b) => new Date(a.read_at) - new Date(b.read_at));
+
 
   if (!configured) return <main className="setup"><div className="setup-card glass"><Sparkles size={30}/><h1>Shahzaib Room</h1><h2>One quick setup required</h2><p>The Supabase project credentials are not configured yet. Follow the step-by-step setup in README.md and add the environment variables in Vercel.</p><code>VITE_SUPABASE_URL<br/>VITE_SUPABASE_ANON_KEY</code></div></main>;
 
@@ -1083,7 +1274,7 @@ function App() {
       </div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={receipts.filter(row => String(row.message_id) === String(m.id) && row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
@@ -1097,6 +1288,11 @@ function App() {
         {!atBottom && <button type="button" className="to-bottom glass" aria-label="Scroll to latest messages" onClick={() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })}><ChevronDown size={20}/></button>}
         {suggestions.length > 0 && <div className="suggest glass">{suggestions.map(n => <button type="button" key={n} onMouseDown={e => e.preventDefault()} onClick={() => pickMention(n)}><Avatar name={n} cls="sm"/>{n}</button>)}</div>}
         {pickerOpen && <div className="picker glass">{EMOJIS.map(em => <button type="button" key={em} onMouseDown={e => e.preventDefault()} onClick={() => addEmoji(em)}><Emoji char={em}/></button>)}</div>}
+        {(replyingTo || editingMessage) && <div className="message-composer-context glass">
+          <div className="message-context-icon">{editingMessage ? <Pencil size={16}/> : <ReplyIcon size={17}/>}</div>
+          <div className="message-context-copy"><b>{editingMessage ? 'Editing message' : `Replying to ${replyingTo.nickname || 'Member'}`}</b><small>{editingMessage ? 'Changes will be visible to everyone' : (replyingTo.message_type === 'voice' ? 'Voice message' : (replyingTo.body || '').slice(0,100))}</small></div>
+          <button type="button" onClick={cancelMessageContext} aria-label="Cancel reply or edit"><X size={17}/></button>
+        </div>}
         {recording && <div className="voice-recording-panel glass">
           <span className="voice-recording-indicator"><i/> RECORDING</span>
           <b>{voiceTime(recordingSeconds)}</b>
@@ -1113,7 +1309,7 @@ function App() {
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
-          <button className="send" disabled={!message.trim() || recording || !!voicePreview} aria-label="Send message" onMouseDown={e => e.preventDefault()}><Send size={18}/></button>
+          <button className="send" disabled={!message.trim() || recording || !!voicePreview || messageActionBusy} aria-label={editingMessage ? 'Save edit' : 'Send message'} onMouseDown={e => e.preventDefault()}>{editingMessage ? <Check size={18}/> : <Send size={18}/>}</button>
         </form>
       </div>
     </section></main>}
@@ -1321,6 +1517,47 @@ function App() {
           </section>
         </>}
       </div>
+    </div>}
+    {messageInfo && <div className="modal-backdrop message-info-backdrop" onClick={() => setMessageInfoId(null)}>
+      <section className="message-info-sheet glass" role="dialog" aria-modal="true" aria-label="Message Info" onClick={e => e.stopPropagation()}>
+        <header className="message-info-header">
+          <div><span className="message-info-kicker">SHAHZAIB ROOM</span><h2>Message Info</h2></div>
+          <button type="button" onClick={() => setMessageInfoId(null)} aria-label="Close message info"><X size={21}/></button>
+        </header>
+        <div className="message-info-preview">
+          <div className="message-info-bubble">{messageInfo.message_type === 'voice' ? <><Mic size={16}/> Voice message</> : (messageInfo.body || '')}</div>
+          <time>{timeOf(messageInfo.created_at)}</time>
+        </div>
+        <div className="message-info-details">
+          <div className="message-info-event sent">
+            <span className="message-info-check"><CheckCheck size={19}/></span>
+            <div><b>Sent</b><small>{messageDateTime(messageInfo.created_at)}</small></div>
+          </div>
+          <div className="message-info-event delivered">
+            <span className="message-info-check"><CheckCheck size={19}/></span>
+            <div><b>Delivered {messageInfoDelivered.length ? `· ${messageInfoDelivered.length}` : ''}</b><small>{messageInfoDelivered.length ? messageDateTime(messageInfoDelivered[0].delivered_at) : 'Waiting for recipients'}</small></div>
+          </div>
+          <div className="message-info-recipients">
+            {messageInfoDelivered.map(receipt => <div className="message-info-recipient" key={receipt.user_id}>
+              <Avatar name={memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Member'} url={memberProfiles[receipt.user_id]?.avatar_url} cls="sm"/>
+              <div><b>{memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Room member'}</b><small>Delivered · {messageDateTime(receipt.delivered_at)}</small></div>
+              <span className={receipt.read_at ? 'receipt-read-badge' : 'receipt-unread-badge'}>{receipt.read_at ? 'READ' : 'DELIVERED'}</span>
+            </div>)}
+            {!messageInfoDelivered.length && <p className="message-info-empty">No delivery receipts yet.</p>}
+          </div>
+          <div className="message-info-event read">
+            <span className="message-info-check"><CheckCheck size={19}/></span>
+            <div><b>Read {messageInfoRead.length ? `· ${messageInfoRead.length}` : ''}</b><small>{messageInfoRead.length ? messageDateTime(messageInfoRead[0].read_at) : 'Not read yet'}</small></div>
+          </div>
+          {messageInfoRead.length > 0 && <div className="message-info-recipients">
+            {messageInfoRead.map(receipt => <div className="message-info-recipient" key={receipt.user_id}>
+              <Avatar name={memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Member'} url={memberProfiles[receipt.user_id]?.avatar_url} cls="sm"/>
+              <div><b>{memberProfiles[receipt.user_id]?.display_name || memberProfiles[receipt.user_id]?.username || 'Room member'}</b><small>Read · {messageDateTime(receipt.read_at)}</small></div>
+              <span className="receipt-read-badge">READ</span>
+            </div>)}
+          </div>}
+        </div>
+      </section>
     </div>}
     {toast && <div className="toast glass">{toast}</div>}
   </div>;
