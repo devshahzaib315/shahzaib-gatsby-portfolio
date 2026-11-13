@@ -149,6 +149,14 @@ const MessageRow = memo(function MessageRow({
   const onVisibleRef = useRef(onVisible);
   onVisibleRef.current = onVisible;
   useEffect(() => {
+    if (!actionsOpen) return;
+    const closeIfOutside = event => {
+      if (!rowRef.current?.contains(event.target)) setActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeIfOutside);
+    return () => document.removeEventListener('pointerdown', closeIfOutside);
+  }, [actionsOpen]);
+  useEffect(() => {
     if (mine || typeof IntersectionObserver === 'undefined') return;
     const node = rowRef.current;
     if (!node) return;
@@ -200,23 +208,24 @@ const MessageRow = memo(function MessageRow({
         <div
           className={`message-bubble-frame ${mine ? 'has-corner-ticks' : ''}`}
           onPointerDown={event => {
-            if (!mine || !['touch','pen'].includes(event.pointerType)) return;
+            if (!['touch','pen','mouse'].includes(event.pointerType)) return;
             if (event.target instanceof Element && event.target.closest('button,a,input,audio')) return;
             if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
             holdTimerRef.current = window.setTimeout(() => {
               holdTimerRef.current = null;
-              onOpenInfo(m.id);
+              setPickerOpen(false);
+              setActionsOpen(true);
             }, 560);
           }}
           onPointerUp={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
           onPointerLeave={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
           onPointerCancel={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
           onContextMenu={event => {
-            if (!mine) return;
             event.preventDefault();
             if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
             holdTimerRef.current = null;
-            onOpenInfo(m.id);
+            setPickerOpen(false);
+            setActionsOpen(true);
           }}
         >
           {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
@@ -233,17 +242,12 @@ const MessageRow = memo(function MessageRow({
           <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
           {pickerOpen && <div className="message-reaction-picker" role="group" aria-label="Choose a reaction">{REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setPickerOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction}><Emoji char={reaction}/></button>)}</div>}
         </div>
-        <div className="message-footer-row">
-          <div className="message-actions">
-            <button type="button" className="message-more-button" aria-label="Message actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen(open => !open)}><MoreHorizontal size={16}/></button>
-            {actionsOpen && <div className="message-actions-menu">
-              <button type="button" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
-              {mine && <button type="button" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
-              {mine && m.message_type === 'text' && <button type="button" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
-              {mine && <button type="button" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
-            </div>}
-          </div>
-        </div>
+        {actionsOpen && <div className="message-actions-menu message-actions-menu-hold" role="menu" aria-label="Message actions" onPointerDown={event => event.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
+          {mine && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
+          {mine && m.message_type === 'text' && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
+          {mine && <button type="button" role="menuitem" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
+        </div>}
       </div>
     </div>
   </>;
