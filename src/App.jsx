@@ -253,11 +253,27 @@ function App() {
       if (!EMAIL_RE.test(cleanEmail)) throw new Error('Enter a valid email address.');
       if (password.length < 8) throw new Error('Password must be at least 8 characters long.');
       let current = session;
-      if (!current) {
-        const { data, error: authError } = await supabase.auth.signInAnonymously();
-        if (authError) throw authError;
-        current = data.session;
+      if (!current || current.user?.is_anonymous) {
+        // Reuse an existing account when the email was registered before.
+        // This lets a returning member restore membership with a fresh invitation code.
+        const { data: existingLogin, error: existingLoginError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password
+        });
+        if (!existingLoginError && existingLogin.session) {
+          current = existingLogin.session;
+        } else {
+          const invalidCredentials = existingLoginError?.code === 'invalid_credentials'
+            || /invalid login credentials/i.test(existingLoginError?.message || '');
+          if (!invalidCredentials && existingLoginError) throw existingLoginError;
+          if (!current) {
+            const { data, error: authError } = await supabase.auth.signInAnonymously();
+            if (authError) throw authError;
+            current = data.session;
+          }
+        }
       }
+      if (!current?.access_token) throw new Error('Could not start your account session. Please try again.');
       const response = await fetch(`${FN}/redeem-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${current.access_token}` },
