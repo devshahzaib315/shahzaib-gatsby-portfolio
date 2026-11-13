@@ -145,6 +145,7 @@ const MessageRow = memo(function MessageRow({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const rowRef = useRef(null);
+  const holdTimerRef = useRef(null);
   const onVisibleRef = useRef(onVisible);
   onVisibleRef.current = onVisible;
   useEffect(() => {
@@ -196,21 +197,48 @@ const MessageRow = memo(function MessageRow({
         {replyPreview && <button type="button" className="message-reply-preview" disabled={!m.reply_to_id} onClick={() => document.getElementById(`message-${m.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
           <span><b>{m.reply_to_nickname || 'Member'}</b><small>{m.reply_to_id ? replyPreview : 'Original message deleted · ' + replyPreview}</small></span>
         </button>}
-        {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
+        <div
+          className="message-bubble-frame"
+          onPointerDown={event => {
+            if (!mine || !['touch','pen'].includes(event.pointerType)) return;
+            if (event.target instanceof Element && event.target.closest('button,a,input,audio')) return;
+            if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = window.setTimeout(() => {
+              holdTimerRef.current = null;
+              onOpenInfo(m.id);
+            }, 560);
+          }}
+          onPointerUp={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
+          onPointerLeave={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
+          onPointerCancel={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
+          onContextMenu={event => {
+            if (!mine) return;
+            event.preventDefault();
+            if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+            onOpenInfo(m.id);
+          }}
+        >
+          {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
+          {mine && <button
+            type="button"
+            className={"message-corner-ticks " + (readCount > 0 ? 'read' : deliveredCount > 0 ? 'delivered' : 'sent')}
+            onClick={() => onOpenInfo(m.id)}
+            aria-label={readCount ? `Read by ${readCount} members. Open message info.` : deliveredCount ? `Delivered to ${deliveredCount} members. Open message info.` : 'Message sent. Open message info.'}
+            title="Message status · Hold message for details"
+          ><CheckCheck size={15}/></button>}
+        </div>
         <div className="message-reaction-row">
           {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
           <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
           {pickerOpen && <div className="message-reaction-picker" role="group" aria-label="Choose a reaction">{REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setPickerOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction}><Emoji char={reaction}/></button>)}</div>}
         </div>
         <div className="message-footer-row">
-          {mine && <button type="button" className={"message-receipt-indicator " + (readCount ? 'is-read' : '')} onClick={() => onOpenInfo(m.id)} title="Message info">
-            <CheckCheck size={14}/><span>{readCount ? `Seen by ${readCount}` : deliveredCount ? `Delivered to ${deliveredCount}` : 'Sent'}</span>
-          </button>}
           <div className="message-actions">
             <button type="button" className="message-more-button" aria-label="Message actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen(open => !open)}><MoreHorizontal size={16}/></button>
             {actionsOpen && <div className="message-actions-menu">
               <button type="button" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
-              <button type="button" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>
+              {mine && <button type="button" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
               {mine && m.message_type === 'text' && <button type="button" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
               {mine && <button type="button" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
             </div>}
