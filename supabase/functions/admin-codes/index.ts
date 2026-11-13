@@ -51,22 +51,24 @@ Deno.serve(async (req) => {
     });
 
     if (action === "dashboard") {
-      const [members, messagesResult, activityResult, codesResult] = await Promise.all([
+      const [members, messagesResult, activityResult, codesResult, messageCountResult] = await Promise.all([
         getMembers(db),
         db.from("messages").select("id,user_id,nickname,body,created_at").order("created_at", { ascending: false }).limit(80),
         db.from("admin_activity").select("id,action,target_user_id,target_nickname,actor,details,created_at").order("created_at", { ascending: false }).limit(80),
-        db.from("activation_codes").select("code_hint,used_at,created_at").order("created_at", { ascending: false }).limit(50)
+        db.from("activation_codes").select("code_hint,used_at,created_at").order("created_at", { ascending: false }).limit(50),
+        db.from("messages").select("id", { count: "exact", head: true })
       ]);
       if (messagesResult.error) throw messagesResult.error;
       if (activityResult.error) throw activityResult.error;
       if (codesResult.error) throw codesResult.error;
+      if (messageCountResult.error) throw messageCountResult.error;
       const now = Date.now();
       return json({
         stats: {
           total_members: members.length,
           banned_members: members.filter((m: any) => m.is_banned).length,
-          active_24h: members.filter((m: any) => m.last_seen && now - new Date(m.last_seen).getTime() < 86400000).length,
-          total_messages: (messagesResult.data || []).length
+          new_24h: members.filter((m: any) => m.joined_at && now - new Date(m.joined_at).getTime() < 86400000).length,
+          total_messages: messageCountResult.count || 0
         },
         members,
         messages: messagesResult.data || [],
