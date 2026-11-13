@@ -26,8 +26,18 @@ function emojiFiles(char) {
 function Emoji({ char }) {
   const [step, setStep] = useState(0);
   const files = useMemo(() => emojiFiles(char), [char]);
-  if (IS_APPLE || step >= files.length) return <span className="emoji-native">{char}</span>;
-  return <img className="emoji" src={`/emoji/${files[step]}.webp`} alt={char} draggable="false" loading="lazy" decoding="async" onError={() => setStep(s => s + 1)} />;
+  // Use the same bundled Apple-style emoji art on every platform for consistent rendering.
+  if (step >= files.length) return <span className="emoji-native" role="img" aria-label={char}>{char}</span>;
+  return <img
+    className="emoji"
+    src={`/emoji/${files[step]}.webp`}
+    alt={char}
+    role="img"
+    draggable="false"
+    loading="eager"
+    decoding="async"
+    onError={() => setStep(current => current + 1)}
+  />;
 }
 function EmojiText({ text }) {
   return <>{text.split(EMOJI_RE).map((part, i) => (i % 2 ? <Emoji key={i} char={part} /> : part))}</>;
