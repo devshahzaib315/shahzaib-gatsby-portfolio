@@ -157,6 +157,39 @@ const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, d
   </>;
 });
 
+
+function PasswordField({ value, onChange, placeholder, autoComplete, minLength, required = true, onKeyDown, disabled = false, name, id, className = '' }) {
+  const [visible, setVisible] = useState(false);
+  return <div className={`password-field ${className}`}>
+    <input
+      id={id}
+      name={name}
+      type={visible ? 'text' : 'password'}
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      minLength={minLength}
+      required={required}
+      disabled={disabled}
+      spellCheck={false}
+      autoCapitalize="off"
+    />
+    <button
+      type="button"
+      className="password-visibility-toggle"
+      onClick={() => setVisible(current => !current)}
+      aria-label={visible ? 'Hide password' : 'Show password'}
+      aria-pressed={visible}
+      title={visible ? 'Hide password' : 'Show password'}
+      disabled={disabled}
+    >
+      {visible ? <EyeOff size={17}/> : <Eye size={17}/>}
+    </button>
+  </div>;
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(() => { try { return JSON.parse(localStorage.getItem('sr-profile') || 'null'); } catch { return null; } });
@@ -1004,7 +1037,7 @@ function App() {
         <label>Email or Username</label>
         <div className="code-input plain"><Mail size={18}/><input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="Email or Username" autoComplete="username" required/></div>
         <label>Password</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" required/>
+        <PasswordField value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password"/>
         <button className="primary" disabled={busy}>{busy ? 'SIGNING IN…' : 'LOGIN'} <span>↗</span></button>
       </form> : <form onSubmit={joinRoom} className="gate-form">
         <label>Your name</label>
@@ -1014,7 +1047,7 @@ function App() {
         <label>Your email</label>
         <div className="code-input plain"><Mail size={18}/><input type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="aap@example.com" maxLength="254" required/></div>
         <label>Password</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength="8" required/>
+        <PasswordField value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength={8}/>
         <p className="hint">Your email is visible only to the room owner, not to other members.</p>
         <label>Activation code</label>
         <div className="code-input"><KeyRound size={18}/><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="SHAH-XXXX-XXXX" autoCapitalize="characters" required/></div>
@@ -1139,7 +1172,7 @@ function App() {
               <label>Email</label>
               <input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} placeholder="you@example.com" maxLength="254" required/>
               <label>New password</label>
-              <input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder="At least 8 characters" minLength="8" required/>
+              <PasswordField value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength={8}/>
               <button className="primary" disabled={busy}>{busy ? 'SAVING…' : 'SAVE LOGIN DETAILS'}</button>
             </form>
             {error && <p className="error">{error}</p>}
@@ -1175,7 +1208,7 @@ function App() {
           <h2>Admin Panel</h2>
           <p>Unlock the private management console to moderate members and messages.</p>
           <label>Admin password</label>
-          <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder="Enter your admin password" autoComplete="current-password"/>
+          <PasswordField value={adminPass} onChange={e => setAdminPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder="Enter your admin password" autoComplete="current-password"/>
           <button className="admin-primary" onClick={unlockAdmin} disabled={busy || !adminPass}>{busy ? 'VERIFYING…' : 'UNLOCK ADMIN CONSOLE'} <span>↗</span></button>
           {error && <p className="admin-error">{error}</p>}
           <small><ShieldCheck size={13}/> Admin actions are protected and activity is recorded.</small>
