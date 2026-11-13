@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, configured } from './supabase';
-import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3 } from 'lucide-react';
+import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save } from 'lucide-react';
 
 const BASE = import.meta.env.VITE_SUPABASE_URL;
 const FN = `${BASE}/functions/v1`;
@@ -74,9 +74,29 @@ function dayLabel(d) {
 }
 const emojiOnly = body => body.replace(EMOJI_RE, '').trim() === '' && (body.match(EMOJI_RE) || []).length <= 3;
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const PROFILE_DEFAULTS = {
+  nickname: '', username: '', bio: '', avatar: null,
+  showOnlineStatus: true, profileVisibility: 'members',
+  dataSaver: false, autoplayMedia: true,
+  hideSensitiveContent: true, pushNotifications: false
+};
+function profileFromRow(row) {
+  return {
+    nickname: row.display_name || 'Member',
+    username: row.username || '',
+    bio: row.bio || '',
+    avatar: row.avatar_url || null,
+    showOnlineStatus: row.show_online_status !== false,
+    profileVisibility: row.profile_visibility || 'members',
+    dataSaver: row.data_saver === true,
+    autoplayMedia: row.autoplay_media !== false,
+    hideSensitiveContent: row.hide_sensitive_content !== false,
+    pushNotifications: row.push_notifications === true
+  };
+}
 
 // Memoised: typing in the message box no longer re-renders (or re-parses) the whole conversation.
-const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me, myId, reactions = [], onReact, reactionBusy }) {
+const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, dp, pattern, me, myId, reactions = [], onReact, reactionBusy, isOnline, onOpenProfile }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body), [mine, me, m.body]);
   const big = useMemo(() => emojiOnly(m.body), [m.body]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -87,9 +107,9 @@ const MessageRow = memo(function MessageRow({ m, mine, grouped, newDay, label, d
   return <>
     {newDay && <div className="day-sep"><span>{label}</span></div>}
     <div className={"message-row " + (mine ? "mine " : "") + (grouped ? "grouped " : "") + (mentioned ? "mentioned" : "")}>
-      <div className="avatar-slot">{!grouped && <Avatar name={m.nickname} url={dp}/>}</div>
+      <div className="avatar-slot">{!grouped && <button type="button" className="message-profile-avatar" aria-label={'View ' + m.nickname + ' profile'} onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}><Avatar name={m.nickname} url={dp}/>{isOnline && <i className="avatar-online-dot"/>}</button>}</div>
       <div className="message-content">
-        {!grouped && <div className="message-meta"><b>{mine ? 'You' : m.nickname}</b><time>{timeOf(m.created_at)}</time></div>}
+        {!grouped && <div className="message-meta"><button type="button" className="message-profile-name" onClick={() => onOpenProfile(m.user_id, { nickname: m.nickname, avatar: dp })}>{mine ? 'You' : m.nickname}</button>{isOnline && <i className="name-online-dot" title="Online"/>}<time>{timeOf(m.created_at)}</time></div>}
         <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body} pattern={pattern} me={me}/></div>
         <div className="message-reaction-row">
           {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
@@ -122,6 +142,13 @@ function App() {
   const [adminTab, setAdminTab] = useState('dashboard');
   const [adminSearch, setAdminSearch] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState('profile');
+  const [profileDraft, setProfileDraft] = useState(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileCardOpen, setProfileCardOpen] = useState(false);
+  const [profileCard, setProfileCard] = useState(null);
+  const [memberProfiles, setMemberProfiles] = useState({});
+  const [onlineMembers, setOnlineMembers] = useState([]);
   const [dpBusy, setDpBusy] = useState(false);
   const [newCode, setNewCode] = useState('');
   const [codes, setCodes] = useState([]);
@@ -165,13 +192,54 @@ function App() {
   }, []);
 
   useEffect(() => { if (profile && session) setView('chat'); }, [profile, session]);
+  useEffect(() => {
+    if (profileOpen) {
+      setProfileDraft({ ...PROFILE_DEFAULTS, ...profile });
+    }
+  }, [profileOpen]);
+
+  useEffect(() => {
+    if (!session?.user?.id || view !== 'chat') return;
+    let cancelled = false;
+    const loadProfiles = async () => {
+      const { data: ownRow, error: ownError } = await supabase.from('member_profiles')
+        .select('user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,data_saver,autoplay_media,hide_sensitive_content,push_notifications,updated_at')
+        .eq('user_id', session.user.id).maybeSingle();
+      if (!cancelled && !ownError && ownRow) {
+        const mapped = profileFromRow(ownRow);
+        setProfile(current => {
+          const next = { ...PROFILE_DEFAULTS, ...current, ...mapped };
+          localStorage.setItem('sr-profile', JSON.stringify(next));
+          return next;
+        });
+      }
+      const { data: rows } = await supabase.from('member_profiles')
+        .select('user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at')
+        .limit(200);
+      if (!cancelled && rows) {
+        setMemberProfiles(Object.fromEntries(rows.map(row => [row.user_id, row])));
+      }
+      if (!cancelled && session.user.email) setAccountEmail(session.user.email);
+    };
+    loadProfiles();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, view]);
 
   useEffect(() => {
     if (view !== 'chat' || !session) return;
     loadChat();
-    const channel = supabase.channel('shahzaib-room-live')
+    const channel = supabase.channel('shahzaib-room-live', { config: { presence: { key: myId } } })
+      .on('presence', { event: 'sync' }, () => {
+        const presence = channel.presenceState();
+        const rows = Object.values(presence).flat();
+        const visibleIds = [...new Set(rows.filter(item => item?.user_id && item.show_online_status !== false).map(item => item.user_id))];
+        setOnlineMembers(visibleIds);
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
+        if (profile?.pushNotifications && payload.new.user_id !== myId && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(`${payload.new.nickname || 'New message'} · Shahzaib Room`, { body: String(payload.new.body || '').slice(0, 120), icon: payload.new.avatar_url || '/icon-192.png' }); } catch (_err) {}
+        }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)));
@@ -201,7 +269,18 @@ function App() {
           delete remoteTypingTimersRef.current[uid];
         }, 2200);
       })
-      .subscribe();
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: myId,
+            nickname: profile?.nickname || 'Member',
+            username: profile?.username || '',
+            avatar_url: profile?.avatar || null,
+            show_online_status: profile?.showOnlineStatus !== false,
+            online_at: new Date().toISOString()
+          });
+        }
+      });
     typingChannelRef.current = channel;
     return () => {
       typingChannelRef.current = null;
@@ -211,6 +290,18 @@ function App() {
       supabase.removeChannel(channel);
     };
   }, [view, session]);
+
+  useEffect(() => {
+    if (view !== 'chat' || !session || !typingChannelRef.current) return;
+    typingChannelRef.current.track({
+      user_id: myId,
+      nickname: profile?.nickname || 'Member',
+      username: profile?.username || '',
+      avatar_url: profile?.avatar || null,
+      show_online_status: profile?.showOnlineStatus !== false,
+      online_at: new Date().toISOString()
+    });
+  }, [profile?.nickname, profile?.username, profile?.avatar, profile?.showOnlineStatus, view, session]);
 
   // If the owner removes someone, their next check fails and they are sent back to the entry screen.
   useEffect(() => {
@@ -340,7 +431,7 @@ function App() {
       if (!response.ok) throw new Error(result.error || 'The activation code was not accepted.');
       saveProfile({ nickname: nickname.trim().slice(0, 28), username: cleanUsername, avatar: null });
       setView('chat'); setNotice('Welcome to Shahzaib Room.');
-      setTimeout(() => setProfileOpen(true), 600);
+      setTimeout(() => openProfileSettings('profile'), 600);
     } catch (err) { setError(err.message || 'Something went wrong.'); }
     finally { setBusy(false); }
   }
@@ -389,6 +480,7 @@ function App() {
         password: accountPassword
       });
       saveProfile({ ...profile, username: cleanUsername });
+      setProfileDraft(current => current ? { ...current, username: cleanUsername } : current);
       setAccountPassword('');
       if (refreshedLoginError || !refreshedLogin.session) {
         setToast('Login details saved. Please log out and sign in again.');
@@ -397,6 +489,134 @@ function App() {
       }
     } catch (err) { setError(err.message || 'Could not save login details.'); }
     finally { setBusy(false); }
+  }
+
+  function openProfileSettings(tab = 'profile') {
+    setProfileDraft({ ...PROFILE_DEFAULTS, ...profile });
+    setProfileTab(tab);
+    setProfileOpen(true);
+    setError('');
+  }
+
+  async function openPublicProfile(userId, fallback = {}) {
+    if (!userId) return;
+    if (userId === myId) { openProfileSettings('profile'); return; }
+    setProfileCard({ loading: true, ...fallback });
+    setProfileCardOpen(true);
+    const cached = memberProfiles[userId];
+    if (cached) {
+      setProfileCard({ ...cached, user_id: userId });
+      return;
+    }
+    const { data, error: fetchError } = await supabase.from('member_profiles')
+      .select('user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility')
+      .eq('user_id', userId).maybeSingle();
+    if (fetchError || !data) {
+      setProfileCard({ user_id: userId, private: true, ...fallback });
+      return;
+    }
+    setProfileCard(data);
+    setMemberProfiles(prev => ({ ...prev, [userId]: data }));
+  }
+
+  async function persistMemberProfile(draft = profileDraft, avatarOverride) {
+    const current = (await supabase.auth.getSession()).data.session;
+    if (!current) throw new Error('Your session has expired. Please sign in again.');
+    const payload = {
+      username: String(draft?.username || '').trim().toLowerCase(),
+      display_name: String(draft?.nickname || '').trim(),
+      bio: String(draft?.bio || '').trim(),
+      avatar_url: avatarOverride === undefined ? (draft?.avatar || null) : avatarOverride,
+      show_online_status: draft?.showOnlineStatus !== false,
+      profile_visibility: draft?.profileVisibility === 'private' ? 'private' : 'members',
+      data_saver: draft?.dataSaver === true,
+      autoplay_media: draft?.autoplayMedia !== false,
+      hide_sensitive_content: draft?.hideSensitiveContent !== false,
+      push_notifications: draft?.pushNotifications === true
+    };
+    const response = await fetch(`${FN}/member-profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${current.access_token}` },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Profile could not be saved.');
+    const mapped = profileFromRow(result.profile);
+    saveProfile(mapped);
+    setProfileDraft(mapped);
+    setMemberProfiles(prev => ({ ...prev, [myId]: result.profile }));
+    if (typingChannelRef.current) {
+      typingChannelRef.current.track({
+        user_id: myId, nickname: mapped.nickname, username: mapped.username,
+        avatar_url: mapped.avatar, show_online_status: mapped.showOnlineStatus,
+        online_at: new Date().toISOString()
+      });
+    }
+    return mapped;
+  }
+
+  async function saveMemberProfile(e) {
+    e.preventDefault();
+    setProfileSaving(true); setError('');
+    try {
+      await persistMemberProfile();
+      setToast('Profile updated successfully.');
+    } catch (err) { setError(err.message || 'Could not save profile.'); }
+    finally { setProfileSaving(false); }
+  }
+
+  async function changeProfileSetting(key, value) {
+    const next = { ...PROFILE_DEFAULTS, ...profileDraft, [key]: value };
+    setProfileDraft(next);
+    setProfileSaving(true); setError('');
+    try {
+      await persistMemberProfile(next);
+      if (key === 'dataSaver') setToast(value ? 'Data Saver is on.' : 'Data Saver is off.');
+      else if (key === 'pushNotifications' && value) setToast('Browser notification preference saved. Delivery works while the room is open in the background.');
+      else setToast('Setting saved.');
+    } catch (err) { setProfileDraft(profile); setError(err.message || 'Setting could not be saved.'); }
+    finally { setProfileSaving(false); }
+  }
+
+  async function changeProfilePhoto(e) {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file || !session) return;
+    if (!file.type.startsWith('image/')) { setToast('Please choose an image file.'); return; }
+    setDpBusy(true); setError('');
+    try {
+      const blob = await squareJpeg(file, 256);
+      const path = `${session.user.id}/avatar.jpg`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+      if (upErr) throw upErr;
+      const url = `${AVATAR_URL(session.user.id)}?v=${Date.now()}`;
+      await persistMemberProfile({ ...PROFILE_DEFAULTS, ...profileDraft, avatar: url });
+      setToast('Profile photo updated.');
+    } catch (err) { setError(err.message || 'Photo upload failed.'); }
+    finally { setDpBusy(false); }
+  }
+
+  async function removeProfilePhoto() {
+    if (!session) return;
+    setDpBusy(true); setError('');
+    try {
+      const { error: removeError } = await supabase.storage.from('avatars').remove([`${session.user.id}/avatar.jpg`]);
+      if (removeError) throw removeError;
+      await persistMemberProfile({ ...PROFILE_DEFAULTS, ...profileDraft, avatar: null }, null);
+      setToast('Profile photo removed.');
+    } catch (err) { setError(err.message || 'Could not remove the photo.'); }
+    finally { setDpBusy(false); }
+  }
+
+  function updateProfileDraft(key, value) {
+    setProfileDraft(current => ({ ...PROFILE_DEFAULTS, ...current, [key]: value }));
+  }
+
+  async function requestBrowserNotifications() {
+    if (!('Notification' in window)) { setToast('This browser does not support notifications.'); return false; }
+    const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (permission !== 'granted') { setToast('Notification permission was not granted.'); return false; }
+    await changeProfileSetting('pushNotifications', true);
+    return true;
   }
 
   function publishTyping(typing) {
@@ -426,28 +646,8 @@ function App() {
     if (sendError) { setToast(sendError.message); setMessage(body); }
   }
 
-  async function changeDp(e) {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file || !session) return;
-    if (!file.type.startsWith('image/')) { setToast('Please choose an image file.'); return; }
-    setDpBusy(true);
-    try {
-      const blob = await squareJpeg(file, 256);
-      const path = `${session.user.id}/avatar.jpg`;
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
-      if (upErr) throw upErr;
-      saveProfile({ ...profile, avatar: `${AVATAR_URL(session.user.id)}?v=${Date.now()}` });
-      setToast('Profile photo updated.');
-    } catch (err) { setToast(err.message || 'Photo upload failed.'); }
-    finally { setDpBusy(false); }
-  }
-  async function removeDp() {
-    if (!session) return;
-    setDpBusy(true);
-    try { await supabase.storage.from('avatars').remove([`${session.user.id}/avatar.jpg`]); saveProfile({ ...profile, avatar: null }); setToast('Photo removed.'); }
-    catch (err) { setToast(err.message || 'Could not remove the photo.'); }
-    finally { setDpBusy(false); }
-  }
+  async function changeDp(e) { return changeProfilePhoto(e); }
+  async function removeDp() { return removeProfilePhoto(); }
 
   async function adminCall(action, extra = {}) {
     const current = (await supabase.auth.getSession()).data.session;
@@ -552,7 +752,7 @@ function App() {
 
   async function copy(text) { await navigator.clipboard.writeText(text); setToast('Copied to clipboard.'); }
   async function leave() {
-    localStorage.removeItem('sr-profile'); setProfile(null); setMessages([]); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
+    localStorage.removeItem('sr-profile'); setProfile(null); setProfileDraft(null); setMemberProfiles({}); setOnlineMembers([]); setProfileCard(null); setProfileCardOpen(false); setMessages([]); setOwner(null); setAdminPass(''); setProfileOpen(false); setView('gate');
     await supabase.auth.signOut();
   }
   async function installApp() {
@@ -591,7 +791,7 @@ function App() {
 
   if (!configured) return <main className="setup"><div className="setup-card glass"><Sparkles size={30}/><h1>Shahzaib Room</h1><h2>One quick setup required</h2><p>The Supabase project credentials are not configured yet. Follow the step-by-step setup in README.md and add the environment variables in Vercel.</p><code>VITE_SUPABASE_URL<br/>VITE_SUPABASE_ANON_KEY</code></div></main>;
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${profile?.dataSaver ? 'data-saver' : ''}`}>
     <div className="liquid-bg" aria-hidden="true"><span className="blob b1"/><span className="blob b2"/><span className="blob b3"/><span className="blob b4"/></div>
     <svg className="svg-defs" width="0" height="0" aria-hidden="true"><defs><filter id="water" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.006 0.01" numOctaves="2" seed="7" result="noise"><animate attributeName="baseFrequency" dur="26s" values="0.006 0.01;0.011 0.006;0.006 0.01" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" in2="noise" scale="90" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
 
@@ -601,7 +801,7 @@ function App() {
         {!standalone && <button className="icon-btn" title="Install on your phone" onClick={installApp}><Download size={18}/></button>}
         {owner && <button className="owner-chip" title="Members (only you can see this)" onClick={() => setAdminOpen(true)}><Users size={14}/> {owner.count}</button>}
         <button className="icon-btn" title="Admin Console" onClick={openAdminConsole}><ShieldCheck size={18}/></button>
-        {view === 'chat' && <button className="me-btn" title="My profile" onClick={() => setProfileOpen(true)}><Avatar name={me} url={profile?.avatar} cls="sm"/></button>}
+        {view === 'chat' && <button className="me-btn" title="My profile" onClick={() => openProfileSettings('profile')}><Avatar name={me} url={profile?.avatar} cls="sm"/></button>}
         {view === 'chat' && <button className="icon-btn" title="Leave room" onClick={leave}><LogOut size={18}/></button>}
       </div>
     </header>
@@ -636,10 +836,10 @@ function App() {
       <div className="gate-foot"><ShieldCheck size={15}/> {loginMode ? 'Login with your email or username.' : 'Invitation code can be used only once.'}</div>
     </div></main> :
     <main className="chat-wrap"><section className="chat-card glass">
-      <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group</small></div></div><span className="live-pill"><i/> LIVE</span></div>
+      <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group · {onlineMembers.length} online</small></div></div><span className="live-pill"><i/> LIVE</span></div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : m.avatar_url} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; return <MessageRow key={m.id} m={m} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
@@ -661,34 +861,96 @@ function App() {
       </div>
     </section></main>}
 
-    {profileOpen && view === 'chat' && <div className="modal-backdrop" onClick={() => setProfileOpen(false)}><div className="admin-modal glass profile-modal" onClick={e => e.stopPropagation()}>
-      <button className="close" onClick={() => setProfileOpen(false)}>×</button>
-      <div className="eyebrow"><span/> MY PROFILE</div>
-      <div className="dp-wrap">
-        <Avatar name={me} url={profile?.avatar} cls="xl"/>
-        <button type="button" className="dp-cam" aria-label="Change photo" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={18}/></button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeDp}/>
-      </div>
-      <h2 className="center">{me}</h2>
-      <p className="center">{dpBusy ? 'Uploading photo…' : 'Tap the camera icon to set your profile photo. It will appear next to your name in the chat.'}</p>
-      <div className="row2">
-        <button className="secondary" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={14}/> {profile?.avatar ? 'Change photo' : 'Add photo'}</button>
-        <button className="secondary" disabled={dpBusy || !profile?.avatar} onClick={removeDp}><Trash2 size={14}/> Remove photo</button>
-      </div>
-      <hr/>
-      <h3>Set up login details</h3>
-      <p className="center">Existing members can set their username, email, and password here. No new invitation code is required.</p>
-      <form className="gate-form" onSubmit={saveAccountCredentials}>
-        <label>Username</label>
-        <input value={accountUsername} onChange={e => setAccountUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder={profile?.username || 'Choose a username'} minLength="3" maxLength="24" required/>
-        <label>Email</label>
-        <input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} placeholder="aap@example.com" maxLength="254" required/>
-        <label>New password</label>
-        <input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder="At least 8 characters" minLength="8" required/>
-        <button className="primary" disabled={busy}>{busy ? 'SAVING…' : 'SAVE LOGIN DETAILS'}</button>
-      </form>
-      {error && <p className="error">{error}</p>}
-    </div></div>}
+    {profileOpen && view === 'chat' && <div className="modal-backdrop profile-backdrop" onClick={() => setProfileOpen(false)}>
+      <section className="profile-settings-shell" onClick={e => e.stopPropagation()}>
+        <button className="profile-settings-close" onClick={() => setProfileOpen(false)} aria-label="Close profile">×</button>
+        <div className="profile-settings-cover">
+          <div className="profile-settings-back"><span>SHAHZAIB ROOM</span><span className="profile-settings-live"><i/> {onlineMembers.length} ONLINE</span></div>
+          <div className="profile-hero-avatar">
+            <Avatar name={profile?.nickname || me} url={profile?.avatar} cls="profile-hero-photo"/>
+            <button type="button" className="profile-photo-button" aria-label="Change profile photo" disabled={dpBusy} onClick={() => fileRef.current?.click()}><Camera size={17}/></button>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={changeDp}/>
+          </div>
+          <h2>{profileDraft?.nickname || me}</h2>
+          <p>@{profileDraft?.username || profile?.username || 'username'}</p>
+          {profile?.bio && <div className="profile-current-bio">{profile.bio}</div>}
+        </div>
+        <nav className="profile-tabs" aria-label="Profile settings">
+          <button className={profileTab === 'profile' ? 'active' : ''} onClick={() => setProfileTab('profile')}><UserRound size={15}/> Profile</button>
+          <button className={profileTab === 'settings' ? 'active' : ''} onClick={() => setProfileTab('settings')}><Settings size={15}/> Settings</button>
+          <button className={profileTab === 'account' ? 'active' : ''} onClick={() => { setProfileTab('account'); setAccountEmail(session?.user?.email || accountEmail); }}><LockKeyhole size={15}/> Account</button>
+        </nav>
+        <div className="profile-tab-content">
+          {profileTab === 'profile' && <form className="profile-edit-form" onSubmit={saveMemberProfile}>
+            <div className="profile-section-heading"><h3>Edit Profile</h3><span>Visible to room members</span></div>
+            <label>Display name</label>
+            <input value={profileDraft?.nickname || ''} onChange={e => updateProfileDraft('nickname', e.target.value.slice(0,28))} placeholder="Your name" maxLength="28" required/>
+            <label>Username</label>
+            <div className="profile-username-input"><span>@</span><input value={profileDraft?.username || ''} onChange={e => updateProfileDraft('username', e.target.value.replace(/[^a-zA-Z0-9_]/g,'').slice(0,24))} placeholder="username" minLength="3" maxLength="24" required/></div>
+            <label>Bio</label>
+            <textarea value={profileDraft?.bio || ''} onChange={e => updateProfileDraft('bio', e.target.value.slice(0,240))} placeholder="Tell the room a little about yourself…" maxLength="240" rows="3"/>
+            <div className="profile-bio-count">{(profileDraft?.bio || '').length}/240</div>
+            <div className="profile-setting-row">
+              <span><b>Show online status</b><small>Let members see when you are online</small></span>
+              <button type="button" className={`profile-switch ${profileDraft?.showOnlineStatus ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.showOnlineStatus} onClick={() => updateProfileDraft('showOnlineStatus', !profileDraft?.showOnlineStatus)}><i/></button>
+            </div>
+            <label>Profile visibility</label>
+            <div className="profile-visibility-options">
+              <button type="button" className={profileDraft?.profileVisibility !== 'private' ? 'selected' : ''} onClick={() => updateProfileDraft('profileVisibility','members')}><Users size={15}/><span><b>Room members</b><small>Visible to people in the room</small></span></button>
+              <button type="button" className={profileDraft?.profileVisibility === 'private' ? 'selected' : ''} onClick={() => updateProfileDraft('profileVisibility','private')}><EyeOff size={15}/><span><b>Private</b><small>Only you can see your profile</small></span></button>
+            </div>
+            <button className="profile-save-button" disabled={profileSaving || dpBusy}>{profileSaving ? 'SAVING…' : <><Save size={16}/> SAVE PROFILE</>}</button>
+            {error && <p className="error">{error}</p>}
+          </form>}
+          {profileTab === 'settings' && <div className="profile-settings-list">
+            <div className="profile-section-heading"><h3>Settings</h3><span>Your preferences</span></div>
+            <div className="profile-settings-label">MEDIA</div>
+            <div className="profile-setting-row"><span><b>Autoplay media</b><small>Play supported media automatically</small></span><button type="button" className={`profile-switch ${profileDraft?.autoplayMedia ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.autoplayMedia} disabled={profileSaving} onClick={() => changeProfileSetting('autoplayMedia', !profileDraft?.autoplayMedia)}><i/></button></div>
+            <div className="profile-settings-label">FEED & PRIVACY</div>
+            <button type="button" className="profile-setting-link" onClick={() => setProfileTab('profile')}><span className="profile-setting-icon"><Globe2 size={17}/></span><span><b>Feed Settings</b><small>Profile visibility and online status</small></span><ChevronRight size={17}/></button>
+            <div className="profile-setting-row"><span><b>Hide sensitive content</b><small>Keep this preference for supported content</small></span><button type="button" className={`profile-switch ${profileDraft?.hideSensitiveContent ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.hideSensitiveContent} disabled={profileSaving} onClick={() => changeProfileSetting('hideSensitiveContent', !profileDraft?.hideSensitiveContent)}><i/></button></div>
+            <div className="profile-settings-label">NOTIFICATIONS</div>
+            <div className="profile-setting-row"><span><b>Browser notifications</b><small>Notify while Shahzaib Room is open in background</small></span><button type="button" className={`profile-switch ${profileDraft?.pushNotifications ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.pushNotifications} disabled={profileSaving} onClick={async () => { if (!profileDraft?.pushNotifications) await requestBrowserNotifications(); else await changeProfileSetting('pushNotifications', false); }}><i/></button></div>
+            <div className="profile-settings-label">PERFORMANCE</div>
+            <div className="profile-setting-row"><span><b>Data Saver</b><small>Reduce background effects and visual motion</small></span><button type="button" className={`profile-switch ${profileDraft?.dataSaver ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.dataSaver} disabled={profileSaving} onClick={() => changeProfileSetting('dataSaver', !profileDraft?.dataSaver)}><i/></button></div>
+            {error && <p className="error">{error}</p>}
+            <button className="profile-logout-button" onClick={leave}><LogOut size={16}/> Log Out <ChevronRight size={17}/></button>
+          </div>}
+          {profileTab === 'account' && <div className="profile-edit-form">
+            <div className="profile-section-heading"><h3>Login Details</h3><span>Private</span></div>
+            <p className="profile-account-note">Email and password are private and are never shown on public profiles.</p>
+            <form className="gate-form" onSubmit={saveAccountCredentials}>
+              <label>Username</label>
+              <input value={accountUsername} onChange={e => setAccountUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0,24))} placeholder={profile?.username || 'Choose a username'} minLength="3" maxLength="24" required/>
+              <label>Email</label>
+              <input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} placeholder="you@example.com" maxLength="254" required/>
+              <label>New password</label>
+              <input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder="At least 8 characters" minLength="8" required/>
+              <button className="primary" disabled={busy}>{busy ? 'SAVING…' : 'SAVE LOGIN DETAILS'}</button>
+            </form>
+            {error && <p className="error">{error}</p>}
+          </div>}
+        </div>
+      </section>
+    </div>}
+
+    {profileCardOpen && <div className="modal-backdrop profile-backdrop" onClick={() => setProfileCardOpen(false)}>
+      <section className="public-profile-card" onClick={e => e.stopPropagation()}>
+        <button className="profile-settings-close" onClick={() => setProfileCardOpen(false)} aria-label="Close profile">×</button>
+        <div className="public-profile-cover"><span>SHAHZAIB ROOM</span></div>
+        <div className="public-profile-body">
+          <div className="public-profile-avatar">
+            <Avatar name={profileCard?.display_name || profileCard?.nickname || 'Member'} url={profileCard?.avatar_url || profileCard?.avatar} cls="profile-hero-photo"/>
+            {onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false && <i className="avatar-online-dot"/>}
+          </div>
+          <h2>{profileCard?.display_name || profileCard?.nickname || 'Member'}</h2>
+          <p className="public-profile-username">@{profileCard?.username || 'member'}</p>
+          <span className={`public-profile-status ${onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'online' : ''}`}><i/>{onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'Online' : 'Offline'}</span>
+          {profileCard?.loading ? <p className="profile-private-note">Loading profile…</p> : profileCard?.private ? <p className="profile-private-note">This member keeps their profile private.</p> : <p className="public-profile-bio">{profileCard?.bio || 'No bio yet.'}</p>}
+          <div className="public-profile-actions"><button onClick={() => setProfileCardOpen(false)}>Close</button></div>
+        </div>
+      </section>
+    </div>}
 
     {adminOpen && <div className="modal-backdrop admin-backdrop" onClick={closeAdminConsole}>
       <div className={`admin-console ${adminUnlocked ? 'unlocked' : 'locked'}`} onClick={e => e.stopPropagation()}>
