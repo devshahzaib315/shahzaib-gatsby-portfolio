@@ -326,8 +326,19 @@ function App() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Account details could not be saved.');
+
+      // Replace a stale anonymous session with a fresh email/password session.
+      const { data: refreshedLogin, error: refreshedLoginError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: accountPassword
+      });
       saveProfile({ ...profile, username: cleanUsername });
-      setAccountPassword(''); setToast('Login details saved. Email verification may be required by Supabase.');
+      setAccountPassword('');
+      if (refreshedLoginError || !refreshedLogin.session) {
+        setToast('Login details saved. Please log out and sign in again.');
+      } else {
+        setToast('Login details saved.');
+      }
     } catch (err) { setError(err.message || 'Could not save login details.'); }
     finally { setBusy(false); }
   }
