@@ -202,11 +202,14 @@ function App() {
     if (!session?.user?.id || view !== 'chat') return;
     let cancelled = false;
     const loadProfiles = async () => {
-      const { data: ownRow, error: ownError } = await supabase.from('member_profiles')
-        .select('user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,data_saver,autoplay_media,hide_sensitive_content,push_notifications,updated_at')
-        .eq('user_id', session.user.id).maybeSingle();
-      if (!cancelled && !ownError && ownRow) {
-        const mapped = profileFromRow(ownRow);
+      const profileResponse = await fetch(`${FN}/member-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'load' })
+      });
+      const profileResult = await profileResponse.json();
+      if (!cancelled && profileResponse.ok && profileResult.profile) {
+        const mapped = profileFromRow(profileResult.profile);
         setProfile(current => {
           const next = { ...PROFILE_DEFAULTS, ...current, ...mapped };
           localStorage.setItem('sr-profile', JSON.stringify(next));
