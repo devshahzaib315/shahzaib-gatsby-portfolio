@@ -1,0 +1,60 @@
+name: Build SHAHZAIB-ROOM Android APK
+
+on:
+  push:
+    branches:
+      - native-app/shahzaib-room-expo
+    paths:
+      - 'apps/shahzaib-room/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build native Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/shahzaib-room
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.4'
+          cache: npm
+          cache-dependency-path: apps/shahzaib-room/package.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install --non-interactive
+
+      - name: Build release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHAHZAIB-ROOM-android-apk
+          path: apps/shahzaib-room/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
