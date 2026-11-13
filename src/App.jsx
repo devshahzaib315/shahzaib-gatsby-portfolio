@@ -151,16 +151,34 @@ const MessageRow = memo(function MessageRow({
     if (mine || typeof IntersectionObserver === 'undefined') return;
     const node = rowRef.current;
     if (!node) return;
+    const root = node.closest('.messages');
+    const markIfVisible = () => {
+      if (document.visibilityState !== 'visible' || !root) return;
+      const rect = node.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      const visibleTop = Math.max(rect.top, rootRect.top);
+      const visibleBottom = Math.min(rect.bottom, rootRect.bottom);
+      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+      if (rect.height > 0 && visibleHeight / rect.height >= 0.55) {
+        observer.unobserve(node);
+        onVisibleRef.current?.(m.id);
+      }
+    };
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.55 && document.visibilityState === 'visible') {
           observer.unobserve(node);
           onVisibleRef.current?.(m.id);
         }
       });
-    }, { root: node.closest('.messages'), threshold: [0, 0.55, 1] });
+    }, { root, threshold: [0, 0.55, 1] });
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') markIfVisible(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [m.id, mine]);
   const summary = useMemo(() => REACTION_OPTIONS.flatMap(reaction => {
     const matches = reactions.filter(row => row.reaction === reaction);
