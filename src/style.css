@@ -2438,13 +2438,13 @@ html[data-theme="dark"] .message-info-empty{color:#c5a2b4}
   touch-action:pan-y;
   -webkit-touch-callout:none;
 }
-.message-bubble-frame>.bubble{
+.message-bubble-frame.has-corner-ticks>.bubble{
   display:block;
   max-width:100%;
   padding-bottom:25px;
   user-select:text;
 }
-.message-bubble-frame>.voice-bubble{
+.message-bubble-frame.has-corner-ticks>.voice-bubble{
   position:relative;
   padding-bottom:24px;
 }
@@ -2495,7 +2495,7 @@ html[data-theme="dark"] .message-corner-ticks.read{color:#87caff}
   .message-corner-ticks{opacity:1}
 }
 @media(max-width:640px){
-  .message-bubble-frame>.bubble{padding-bottom:25px}
-  .message-bubble-frame>.voice-bubble{padding-bottom:24px}
+  .message-bubble-frame.has-corner-ticks>.bubble{padding-bottom:25px}
+  .message-bubble-frame.has-corner-ticks>.voice-bubble{padding-bottom:24px}
   .message-corner-ticks{right:8px;bottom:5px}
 }
