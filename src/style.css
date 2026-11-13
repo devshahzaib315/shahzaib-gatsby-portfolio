@@ -1656,3 +1656,85 @@ button,input,textarea{color:inherit}
 @media(prefers-reduced-motion:reduce){
   .glass::before,.blob{animation:none!important}
 }
+
+/* Password field visibility control — shared by Login, Signup, Account and Admin */
+.password-field{
+  position:relative;
+  display:flex;
+  align-items:center;
+  width:100%;
+  min-width:0;
+  min-height:51px;
+  border:1px solid rgba(209,117,153,.35);
+  border-radius:15px;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,247,250,.95));
+  box-shadow:inset 0 1px 2px rgba(169,88,122,.035),0 2px 9px rgba(183,94,130,.035);
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.password-field:focus-within{
+  border-color:#e47da4;
+  box-shadow:0 0 0 4px rgba(229,105,153,.12),inset 0 1px 2px rgba(169,88,122,.035);
+}
+.password-field input,
+.password-field input:focus,
+.password-field input:autofill{
+  flex:1;
+  width:100%;
+  min-width:0;
+  height:49px;
+  min-height:49px;
+  margin:0;
+  padding:0 8px 0 14px;
+  border:0!important;
+  border-radius:14px;
+  outline:0!important;
+  color:#6c3850!important;
+  -webkit-text-fill-color:#6c3850!important;
+  caret-color:#d94b83;
+  background:transparent!important;
+  box-shadow:none!important;
+  font:inherit;
+  font-size:14px;
+  letter-spacing:.01em;
+}
+.password-field input::placeholder{
+  color:#c49aaa!important;
+  -webkit-text-fill-color:#c49aaa!important;
+  opacity:1;
+}
+.password-field input:disabled{opacity:.55;cursor:not-allowed}
+.password-visibility-toggle{
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:40px;
+  height:40px;
+  margin:0 5px 0 0;
+  padding:0;
+  border:1px solid rgba(216,117,155,.14);
+  border-radius:12px;
+  color:#bd5a83;
+  background:linear-gradient(145deg,#fff,#ffeef4);
+  box-shadow:inset 0 1px 0 #fff,0 2px 7px rgba(181,90,132,.055);
+  cursor:pointer;
+  transition:transform .16s ease,color .16s ease,background .16s ease,box-shadow .16s ease;
+}
+.password-visibility-toggle:hover{
+  color:#a63868;
+  background:#ffe3ed;
+  box-shadow:inset 0 1px 0 #fff,0 3px 10px rgba(181,90,132,.1);
+}
+.password-visibility-toggle:active{transform:scale(.92)}
+.password-visibility-toggle:focus-visible{
+  outline:2px solid rgba(220,75,130,.6);
+  outline-offset:2px;
+}
+.password-visibility-toggle:disabled{opacity:.45;cursor:not-allowed}
+.gate-form .password-field{margin:0 0 2px}
+.admin-login-card .password-field{margin-bottom:2px}
+.profile-tab-content .password-field{width:100%}
+@media(max-width:640px){
+  .password-field{min-height:52px;border-radius:15px}
+  .password-field input{height:50px;min-height:50px;font-size:16px}
+  .password-visibility-toggle{width:38px;height:38px;margin-right:6px}
+}
