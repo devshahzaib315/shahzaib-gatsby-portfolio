@@ -198,7 +198,7 @@ const MessageRow = memo(function MessageRow({
           <span><b>{m.reply_to_nickname || 'Member'}</b><small>{m.reply_to_id ? replyPreview : 'Original message deleted · ' + replyPreview}</small></span>
         </button>}
         <div
-          className="message-bubble-frame"
+          className={`message-bubble-frame ${mine ? 'has-corner-ticks' : ''}`}
           onPointerDown={event => {
             if (!mine || !['touch','pen'].includes(event.pointerType)) return;
             if (event.target instanceof Element && event.target.closest('button,a,input,audio')) return;
