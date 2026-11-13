@@ -2,13 +2,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-const emailRe = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/;
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
   try {
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "");
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
     if (!token) return json({ error: "Please sign in first." }, 401);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     // Validate the signed JWT claims, then load the user by its subject.
