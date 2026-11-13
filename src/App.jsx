@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, configured } from './supabase';
-import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save, Mic, Play, Pause, X, Check } from 'lucide-react';
+import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3, Settings, Bell, BellOff, ChevronRight, Globe2, Eye, EyeOff, Image as ImageIcon, Wifi, UserRound, Save, Mic, Play, Pause, X, Check, Sun, Moon } from 'lucide-react';
 
 const BASE = import.meta.env.VITE_SUPABASE_URL;
 const FN = `${BASE}/functions/v1`;
@@ -78,7 +78,8 @@ const PROFILE_DEFAULTS = {
   nickname: '', username: '', bio: '', avatar: null,
   showOnlineStatus: true, profileVisibility: 'members',
   dataSaver: false, autoplayMedia: true,
-  hideSensitiveContent: true, pushNotifications: false
+  hideSensitiveContent: true, pushNotifications: false,
+  themeMode: 'light'
 };
 function profileFromRow(row) {
   return {
@@ -91,7 +92,8 @@ function profileFromRow(row) {
     dataSaver: row.data_saver === true,
     autoplayMedia: row.autoplay_media !== false,
     hideSensitiveContent: row.hide_sensitive_content !== false,
-    pushNotifications: row.push_notifications === true
+    pushNotifications: row.push_notifications === true,
+    themeMode: row.theme_mode === 'dark' ? 'dark' : 'light'
   };
 }
 
@@ -289,6 +291,14 @@ function App() {
     window.addEventListener('beforeinstallprompt', h);
     return () => window.removeEventListener('beforeinstallprompt', h);
   }, []);
+
+  useEffect(() => {
+    const mode = profile?.themeMode === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = mode;
+    document.documentElement.style.colorScheme = mode;
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute('content', mode === 'dark' ? '#180e17' : '#fff4f8');
+  }, [profile?.themeMode]);
 
   useEffect(() => { if (profile && session) setView('chat'); }, [profile, session]);
   useEffect(() => {
@@ -656,7 +666,8 @@ function App() {
       data_saver: draft?.dataSaver === true,
       autoplay_media: draft?.autoplayMedia !== false,
       hide_sensitive_content: draft?.hideSensitiveContent !== false,
-      push_notifications: draft?.pushNotifications === true
+      push_notifications: draft?.pushNotifications === true,
+      theme_mode: draft?.themeMode === 'dark' ? 'dark' : 'light'
     };
     const response = await fetch(`${FN}/member-profile`, {
       method: 'POST',
@@ -697,6 +708,7 @@ function App() {
     try {
       await persistMemberProfile(next);
       if (key === 'dataSaver') setToast(value ? 'Data Saver is on.' : 'Data Saver is off.');
+      else if (key === 'themeMode') setToast(value === 'dark' ? 'Dark theme enabled.' : 'Light theme enabled.');
       else if (key === 'pushNotifications' && value) setToast('Browser notification preference saved. Delivery works while the room is open in the background.');
       else setToast('Setting saved.');
     } catch (err) { setProfileDraft(profile); setError(err.message || 'Setting could not be saved.'); }
@@ -1151,6 +1163,24 @@ function App() {
           </form>}
           {profileTab === 'settings' && <div className="profile-settings-list">
             <div className="profile-section-heading"><h3>Settings</h3><span>Your preferences</span></div>
+            <div className="profile-settings-label">APPEARANCE</div>
+            <div className="profile-theme-card">
+              <div className="profile-theme-copy">
+                <b>App Theme</b>
+                <small>Choose the look you prefer. Your choice is saved to your account.</small>
+              </div>
+              <div className="profile-theme-options" role="group" aria-label="Choose app theme">
+                <button type="button" className={profileDraft?.themeMode !== 'dark' ? 'selected' : ''} aria-pressed={profileDraft?.themeMode !== 'dark'} disabled={profileSaving} onClick={() => changeProfileSetting('themeMode','light')}>
+                  <span className="profile-theme-preview light"><Sun size={20}/><i/><i/><i/></span>
+                  <b>Light</b>
+                </button>
+                <button type="button" className={profileDraft?.themeMode === 'dark' ? 'selected' : ''} aria-pressed={profileDraft?.themeMode === 'dark'} disabled={profileSaving} onClick={() => changeProfileSetting('themeMode','dark')}>
+                  <span className="profile-theme-preview dark"><Moon size={20}/><i/><i/><i/></span>
+                  <b>Dark</b>
+                </button>
+              </div>
+              <div className="profile-theme-current"><span className={profileDraft?.themeMode === 'dark' ? 'theme-dot dark' : 'theme-dot'}/>{profileDraft?.themeMode === 'dark' ? 'Dark pink glass' : 'Soft pink light'}</div>
+            </div>
             <div className="profile-settings-label">MEDIA</div>
             <div className="profile-setting-row"><span><b>Autoplay media</b><small>Play supported media automatically</small></span><button type="button" className={`profile-switch ${profileDraft?.autoplayMedia ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.autoplayMedia} disabled={profileSaving} onClick={() => changeProfileSetting('autoplayMedia', !profileDraft?.autoplayMedia)}><i/></button></div>
             <div className="profile-settings-label">FEED & PRIVACY</div>
