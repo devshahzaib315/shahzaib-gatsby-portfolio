@@ -48,8 +48,16 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Align Expo package versions
+        run: npx expo install --fix
+
+      - name: Verify Expo autolinking metadata
+        run: npx expo-modules-autolinking resolve --platform android
+
       - name: Generate native Android project
-        run: npx expo prebuild --platform android --no-install --non-interactive
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --no-install
 
       - name: Build release APK
         run: |
