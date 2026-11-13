@@ -2641,3 +2641,83 @@ html[data-theme="dark"] .message-swipe-reply-hint{
   .message-hold-reactions button{width:31px;height:31px}
   .message-swipe-reply-hint{left:-25px;width:23px;height:23px}
 }
+
+
+/* Consistent, unclipped long-press reaction palette */
+.message-actions-menu-hold{
+  box-sizing:border-box;
+  width:224px;
+  min-width:224px;
+  max-width:min(224px,calc(100vw - 28px));
+  padding:9px;
+}
+.message-actions-menu-hold .message-hold-reactions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:center;
+  justify-items:center;
+  gap:6px;
+  width:100%;
+  padding:2px 0 9px;
+}
+.message-actions-menu-hold .message-hold-reactions button{
+  box-sizing:border-box;
+  display:grid;
+  place-items:center;
+  width:40px;
+  min-width:40px;
+  max-width:40px;
+  height:40px;
+  min-height:40px;
+  max-height:40px;
+  gap:0;
+  padding:0;
+  margin:0;
+  border:1px solid transparent;
+  border-radius:12px;
+  color:inherit;
+  background:transparent;
+  line-height:1;
+}
+.message-actions-menu-hold .message-hold-reactions button:hover,
+.message-actions-menu-hold .message-hold-reactions button:focus-visible{
+  background:#ffe5ef;
+  border-color:rgba(211,103,149,.25);
+  transform:scale(1.06);
+}
+.message-actions-menu-hold .message-hold-reactions .emoji,
+.message-actions-menu-hold .message-hold-reactions .emoji-native{
+  display:block;
+  flex:none;
+  width:30px;
+  min-width:30px;
+  height:30px;
+  min-height:30px;
+  margin:0;
+  padding:0;
+  object-fit:contain;
+  vertical-align:middle;
+  font-size:27px;
+  line-height:30px;
+}
+.message-actions-menu-hold .message-hold-menu-divider{
+  margin:0 2px 6px;
+}
+@media(max-width:640px){
+  .message-actions-menu-hold{
+    width:224px;
+    min-width:224px;
+    max-width:calc(100vw - 28px);
+  }
+  .message-actions-menu-hold .message-hold-reactions{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:5px;
+  }
+  .message-actions-menu-hold .message-hold-reactions button{
+    width:40px;min-width:40px;height:40px;min-height:40px;
+  }
+  .message-actions-menu-hold .message-hold-reactions .emoji,
+  .message-actions-menu-hold .message-hold-reactions .emoji-native{
+    width:30px;height:30px;font-size:27px;line-height:30px;
+  }
+}
