@@ -985,7 +985,7 @@ function App() {
     <svg className="svg-defs" width="0" height="0" aria-hidden="true"><defs><filter id="water" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.006 0.01" numOctaves="2" seed="7" result="noise"><animate attributeName="baseFrequency" dur="26s" values="0.006 0.01;0.011 0.006;0.006 0.01" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" in2="noise" scale="90" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
 
     <header className="topbar glass">
-      <a className="brand" href="#"><span className="brand-icon"><MessageCircle size={18}/></span><span>Shahzaib<span className="brand-light"> Room</span></span></a>
+      <a className="brand" href="#"><span className="brand-icon"><MessageCircle size={18}/></span><span className="brand-wordmark"><span>Shahzaib<span className="brand-light"> Room</span></span><small>PRIVATE MESSENGER</small></span></a>
       <div className="top-right">
         {!standalone && <button className="icon-btn" title="Install on your phone" onClick={installApp}><Download size={18}/></button>}
         {owner && <button className="owner-chip" title="Members (only you can see this)" onClick={() => setAdminOpen(true)}><Users size={14}/> {owner.count}</button>}
@@ -1025,7 +1025,17 @@ function App() {
       <div className="gate-foot"><ShieldCheck size={15}/> {loginMode ? 'Login with your email or username.' : 'Invitation code can be used only once.'}</div>
     </div></main> :
     <main className="chat-wrap"><section className="chat-card glass">
-      <div className="chat-head"><div className="head-left"><span className="room-logo"><MessageCircle size={20}/></span><div><h2>Shahzaib Room</h2><small>Private group · {onlineMembers.length} online</small></div></div><span className="live-pill"><i/> LIVE</span></div>
+      <div className="chat-head">
+        <div className="head-left">
+          <span className="room-logo"><MessageCircle size={20}/></span>
+          <div className="room-heading">
+            <span className="room-overline"><i/> PRIVATE SPACE</span>
+            <h2>Shahzaib Room</h2>
+            <small><i className="room-online-dot"/> {onlineMembers.length} members online <span className="room-heading-divider"/> Live conversation</small>
+          </div>
+        </div>
+        <span className="live-pill"><i/> LIVE NOW</span>
+      </div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile}/>; })}
