@@ -160,6 +160,9 @@ function App() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
         setMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
+        setMessages(prev => prev.filter(m => String(m.id) !== String(payload.old.id)));
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         if (!payload || payload.user_id === myId || !payload.user_id) return;
         const uid = payload.user_id;
@@ -489,11 +492,11 @@ function App() {
     finally { setBusy(false); }
   }
   async function openAdminConsole() {
-    setAdminOpen(true); setAdminUnlocked(false); setAdminData(null);
+    setAdminOpen(true); setAdminUnlocked(false); setAdminData(null); setOwner(null);
     setAdminTab('dashboard'); setAdminSearch(''); setError(''); setNotice('');
   }
   function closeAdminConsole() {
-    setAdminOpen(false); setAdminUnlocked(false); setAdminData(null);
+    setAdminOpen(false); setAdminUnlocked(false); setAdminData(null); setOwner(null);
     setAdminPass(''); setAdminSearch(''); setError(''); setNotice('');
   }
 
@@ -674,7 +677,7 @@ function App() {
             {adminTab === 'dashboard' && <div className="admin-view">
               <div className="admin-stat-grid">
                 <div className="admin-stat"><span>Total Users</span><b>{adminData?.stats?.total_members ?? 0}</b><small><Users size={14}/> Room members</small></div>
-                <div className="admin-stat"><span>Messages (latest 80)</span><b>{adminData?.stats?.total_messages ?? 0}</b><small><MessageSquare size={14}/> Recent room messages</small></div>
+                <div className="admin-stat"><span>Recent Messages</span><b>{adminData?.stats?.total_messages ?? 0}</b><small><MessageSquare size={14}/> Latest 80 in the room</small></div>
                 <div className="admin-stat"><span>Active in 24 hours</span><b>{adminData?.stats?.active_24h ?? 0}</b><small><Activity size={14}/> Based on last seen</small></div>
                 <div className="admin-stat"><span>Banned Users</span><b>{adminData?.stats?.banned_members ?? 0}</b><small><BanIcon size={14}/> Restricted accounts</small></div>
               </div>
