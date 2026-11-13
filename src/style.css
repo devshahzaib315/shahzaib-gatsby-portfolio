@@ -2531,3 +2531,54 @@ html[data-theme="dark"] .message-actions-menu-hold{
 @media(max-width:640px){
   .message-actions-menu-hold{right:0;bottom:26px;min-width:160px}
 }
+
+/* Mobile chat polish: align avatars with bubbles and keep ticks on the message line */
+.message-row{
+  align-items:flex-start;
+}
+.avatar-slot{
+  align-items:flex-start;
+  padding-top:25px;
+}
+.message-bubble-frame.has-corner-ticks>.bubble{
+  padding-top:11px;
+  padding-right:34px;
+  padding-bottom:11px;
+}
+.message-corner-ticks{
+  right:8px;
+  bottom:7px;
+  width:19px;
+  height:16px;
+}
+.message-corner-ticks svg{
+  width:15px;
+  height:15px;
+}
+.message-bubble-frame.has-corner-ticks>.voice-bubble{
+  padding-right:30px;
+  padding-bottom:0;
+}
+@media(max-width:640px){
+  .message-row{align-items:flex-start}
+  .avatar-slot{
+    align-items:flex-start;
+    padding-top:24px;
+  }
+  .message-bubble-frame.has-corner-ticks>.bubble{
+    padding:10px 33px 10px 13px;
+  }
+  .message-corner-ticks{
+    right:7px;
+    bottom:6px;
+    width:19px;
+    height:15px;
+  }
+  .message-bubble-frame.has-corner-ticks>.voice-bubble{
+    padding:9px 30px 0 10px;
+  }
+}
+@media(max-width:380px){
+  .avatar-slot{padding-top:23px}
+  .message-bubble-frame.has-corner-ticks>.bubble{padding-right:32px}
+}
