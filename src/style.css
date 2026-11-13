@@ -2582,3 +2582,62 @@ html[data-theme="dark"] .message-actions-menu-hold{
   .avatar-slot{padding-top:23px}
   .message-bubble-frame.has-corner-ticks>.bubble{padding-right:32px}
 }
+
+/* Reaction choices appear only inside the long-press message menu */
+.message-hold-reactions{
+  display:grid;
+  grid-template-columns:repeat(6,30px);
+  justify-content:center;
+  gap:5px;
+  padding:3px 1px 7px;
+}
+.message-hold-reactions button{
+  width:30px;height:30px;display:grid;place-items:center;padding:0;
+  border:1px solid transparent;border-radius:9px;
+  background:transparent;cursor:pointer;
+  transition:transform .12s ease,background .12s ease,border-color .12s ease;
+}
+.message-hold-reactions button:hover,
+.message-hold-reactions button:focus-visible{
+  background:#ffe5ef;border-color:rgba(211,103,149,.25);
+  transform:scale(1.1);
+}
+.message-hold-reactions .emoji{width:22px;height:22px;object-fit:contain}
+.message-hold-reactions .emoji-native{font-size:19px;line-height:1}
+.message-hold-menu-divider{
+  height:1px;margin:1px 2px 5px;
+  background:rgba(211,117,153,.18);
+}
+.message-reaction-row:empty{display:none}
+.message-reaction-row{
+  min-height:0;
+  margin-top:3px;
+}
+.message-swipe-reply-hint{
+  position:absolute;
+  left:-27px;
+  top:50%;
+  transform:translateY(-50%);
+  display:grid;place-items:center;
+  width:25px;height:25px;
+  border:1px solid rgba(220,135,171,.35);
+  border-radius:50%;
+  color:#c85c8d;
+  background:rgba(255,241,247,.94);
+  box-shadow:0 4px 12px rgba(150,62,103,.16);
+  pointer-events:none;
+}
+html[data-theme="dark"] .message-hold-reactions button:hover,
+html[data-theme="dark"] .message-hold-reactions button:focus-visible{
+  background:rgba(226,118,164,.2);border-color:rgba(245,177,207,.2);
+}
+html[data-theme="dark"] .message-hold-menu-divider{background:rgba(246,177,207,.16)}
+html[data-theme="dark"] .message-swipe-reply-hint{
+  color:#ffb6d2;border-color:rgba(246,177,207,.26);
+  background:rgba(61,35,57,.96);box-shadow:0 4px 12px rgba(0,0,0,.28);
+}
+@media(max-width:640px){
+  .message-hold-reactions{grid-template-columns:repeat(6,31px);gap:5px}
+  .message-hold-reactions button{width:31px;height:31px}
+  .message-swipe-reply-hint{left:-25px;width:23px;height:23px}
+}
