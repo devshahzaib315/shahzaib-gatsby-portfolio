@@ -1150,3 +1150,509 @@ button:not(:disabled){-webkit-user-select:none;user-select:none}
   .emoji-btn,.voice-record-button{width:32px;min-width:32px;height:32px}
   .send{width:37px;min-width:37px;height:37px}
 }
+
+/* =====================================================================
+   SHAHZAIB ROOM — SOFT BLUSH / ROSE LIQUID GLASS THEME
+   Full-app recolor: auth, chat, reactions, voice, profiles and admin.
+   ===================================================================== */
+:root{
+  color-scheme:light;
+  --ios-bg:#fff4f8;
+  --ios-panel:rgba(255,255,255,.82);
+  --ios-panel-strong:rgba(255,255,255,.94);
+  --ios-panel-soft:rgba(255,226,237,.68);
+  --ios-line:rgba(211,91,140,.2);
+  --ios-line-bright:rgba(207,74,130,.38);
+  --ios-cyan:#f6a8c7;
+  --ios-blue:#ef83ac;
+  --ios-violet:#e86f9d;
+  --ios-mint:#75cda5;
+  --ios-shadow:0 24px 70px rgba(157,69,108,.13);
+  --ios-glass-shadow:inset 0 1px 0 rgba(255,255,255,.94),inset 0 -1px 0 rgba(211,91,140,.035),0 14px 36px rgba(160,67,106,.09);
+  --sr-ice:#fff0f6;
+  --sr-lavender:#ffe0ec;
+  --sr-glow:rgba(235,111,159,.22);
+  --sr-text-soft:#a06c82;
+  color:#63364b;
+  background:var(--ios-bg);
+}
+html,body,#root{background:#fff4f8;color:#63364b}
+body{
+  color:#63364b;
+  background:
+    radial-gradient(ellipse at 5% 0%,rgba(255,203,222,.72),transparent 43%),
+    radial-gradient(ellipse at 97% 80%,rgba(255,220,236,.8),transparent 42%),
+    linear-gradient(180deg,#fff9fb 0%,#fff0f5 52%,#fff6f9 100%);
+}
+button,input,textarea{color:inherit}
+::selection{color:#702d4a;background:#ffc6dc}
+:focus-visible{outline:2px solid rgba(220,75,130,.65);outline-offset:3px}
+
+/* Light rose aurora instead of the former blue night sky */
+.app-shell{
+  color:#63364b;
+  background:
+    radial-gradient(ellipse at 6% 2%,rgba(255,206,225,.4),transparent 42%),
+    radial-gradient(ellipse at 92% 84%,rgba(248,199,222,.38),transparent 43%);
+}
+.liquid-bg{
+  background:
+    radial-gradient(ellipse at 50% 10%,rgba(255,255,255,.95),transparent 42%),
+    radial-gradient(ellipse at 0% 56%,rgba(255,194,218,.72),transparent 42%),
+    radial-gradient(ellipse at 100% 75%,rgba(247,197,220,.72),transparent 43%),
+    linear-gradient(145deg,#fff8fb,#ffeaf2 52%,#fff5f8);
+}
+.liquid-bg::before{
+  opacity:.75;
+  background:
+    radial-gradient(ellipse at 48% -12%,rgba(255,255,255,.9),transparent 45%),
+    radial-gradient(ellipse at 100% 70%,rgba(247,160,195,.18),transparent 38%),
+    linear-gradient(130deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);
+}
+.liquid-bg::after{opacity:.055;mix-blend-mode:multiply}
+.blob{mix-blend-mode:multiply;opacity:.2;filter:blur(90px)}
+.b1{background:radial-gradient(circle at 35% 35%,#ffc2d8,#f28db3 58%,transparent 76%)}
+.b2{background:radial-gradient(circle at 40% 40%,#ffe0eb,#f3a4c2 58%,transparent 76%)}
+.b3{background:radial-gradient(circle at 40% 40%,#f9c3db,#e998c0 60%,transparent 76%)}
+.b4{background:radial-gradient(circle at 40% 40%,#fff0f5,#f5b7d0 58%,transparent 76%);opacity:.2}
+
+/* Universal liquid glass becomes translucent porcelain with rose rims */
+.glass{
+  color:#67394e;
+  border:1px solid rgba(213,111,153,.2);
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.94),rgba(255,255,255,.76) 48%,rgba(255,222,236,.53)),
+    rgba(255,250,252,.84);
+  -webkit-backdrop-filter:blur(28px) saturate(160%);
+  backdrop-filter:blur(28px) saturate(160%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.98),inset 0 -1px 0 rgba(213,111,153,.07),0 18px 48px rgba(170,79,119,.11);
+}
+.glass::before{
+  opacity:.52;
+  background:linear-gradient(118deg,transparent 12%,rgba(255,255,255,.82) 29%,transparent 43%),linear-gradient(180deg,rgba(255,255,255,.3),transparent 38%);
+}
+
+/* Top navigation: white porcelain, rose wordmark and icon */
+.topbar,.topbar.glass{
+  color:#a63e6b;
+  border-color:rgba(211,91,140,.19);
+  background:linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,248,251,.9) 58%,rgba(255,233,242,.92));
+  box-shadow:inset 0 1px 0 #fff,0 12px 34px rgba(188,89,130,.13);
+}
+.brand,.brand-wordmark>span{color:#c34e7d}
+.brand-light{color:#e47da5;background:none;-webkit-text-fill-color:initial}
+.brand-wordmark small{color:#c68aa3}
+.brand-icon,.room-logo,.admin-sidebar-brand>span,.admin-brand-mark{
+  color:#ce5785;
+  border-color:rgba(255,255,255,.96);
+  background:linear-gradient(145deg,#fff2f7 0%,#ffd8e7 53%,#f5a8c4 100%);
+  box-shadow:inset 0 1px 0 #fff,0 7px 20px rgba(207,92,139,.16);
+}
+.brand-icon::after{background:linear-gradient(135deg,rgba(255,255,255,.76),transparent 48%)}
+.icon-btn{
+  color:#c45b84;
+  border-color:rgba(207,103,146,.13);
+  background:rgba(255,229,239,.55);
+}
+.icon-btn:hover{color:#a33361;background:#ffe1ec;box-shadow:inset 0 1px 0 #fff,0 5px 14px rgba(199,86,132,.12)}
+.me-btn{border-color:#f3a5c1;background:linear-gradient(145deg,#fff,#ffd9e7);box-shadow:0 0 0 3px rgba(237,132,173,.1),0 5px 18px rgba(201,91,137,.15)}
+.owner-chip{color:#a64a70;background:#ffedf4;border-color:#f5c0d3}
+
+/* Main authentication card: white with rose-pink highlights */
+.gate-card,.gate-card.glass{
+  color:#6d3a52;
+  border:1px solid rgba(222,151,178,.48);
+  background:
+    radial-gradient(ellipse at 50% -20%,rgba(255,255,255,.98),transparent 54%),
+    linear-gradient(155deg,rgba(255,255,255,.98),rgba(255,250,252,.96) 65%,rgba(255,236,244,.95));
+  box-shadow:inset 0 1px 0 #fff,0 26px 75px rgba(179,79,120,.15);
+}
+.orb{
+  color:#c84f7b;
+  background:radial-gradient(circle at 27% 20%,#fff, #ffe1ec 30%,#f7b4cd 66%,#e98eb2);
+  border-color:#f6ccda;
+  box-shadow:inset 0 2px 7px #fff,0 13px 34px rgba(226,105,155,.19),0 0 0 7px rgba(237,150,184,.09);
+}
+.gate-card h1,.gate-card h2,.gate-card h3{color:#a83263}
+.gate-card h1 em,.gate-card h1 span{color:#df6795;background:linear-gradient(95deg,#d64f83,#ed88ad);-webkit-background-clip:text;background-clip:text}
+.eyebrow{color:#d36c95}
+.sub,.gate-card p{color:#967887}
+.gate-form label,.admin-modal label{color:#b14f79}
+.gate-form>input,.code-input,.admin-modal input,.admin-login-card input,
+.admin-search input,.profile-edit-form>input,.profile-username-input,.profile-edit-form textarea{
+  color:#6c3850!important;
+  -webkit-text-fill-color:#6c3850;
+  border-color:rgba(209,117,153,.35);
+  background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,247,250,.94));
+  box-shadow:inset 0 1px 2px rgba(169,88,122,.035),0 2px 9px rgba(183,94,130,.035);
+}
+.gate-form>input::placeholder,.profile-edit-form input::placeholder,.profile-edit-form textarea::placeholder,
+.admin-search input::placeholder{color:#c49aaa;-webkit-text-fill-color:#c49aaa}
+.gate-form input:focus,.code-input:focus-within,.admin-modal input:focus,.profile-edit-form>input:focus,
+.profile-username-input:focus-within,.profile-edit-form textarea:focus{
+  border-color:#e47da4;
+  box-shadow:0 0 0 4px rgba(229,105,153,.12),inset 0 1px 2px rgba(169,88,122,.035);
+}
+.primary,.admin-primary,.profile-save-button{
+  color:#fff;
+  border:1px solid rgba(255,255,255,.78);
+  background:linear-gradient(110deg,#f18ab0 0%,#e85d91 54%,#d94b83 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 27px rgba(218,75,129,.25);
+}
+.primary:hover,.admin-primary:hover,.profile-save-button:hover{filter:brightness(1.035);box-shadow:inset 0 1px 0 rgba(255,255,255,.64),0 13px 30px rgba(218,75,129,.3)}
+.secondary,.generated button{
+  color:#a34a70;border-color:rgba(208,110,150,.24);
+  background:rgba(255,236,244,.82);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);
+}
+.account-switch{color:#b04d77;border-color:rgba(216,117,155,.24);background:rgba(255,236,244,.84)}
+.generated{background:#fff0f6;border-color:#f3c3d6}
+.generated strong{color:#a93365}
+
+/* Whole chat canvas: rosy mist, not a dark panel */
+.chat-card,.chat-card.glass{
+  color:#67394e;border-color:rgba(218,137,168,.37);
+  background:
+    radial-gradient(ellipse at 50% -24%,rgba(255,255,255,.9),transparent 55%),
+    linear-gradient(155deg,rgba(255,255,255,.94),rgba(255,247,250,.94) 58%,rgba(255,233,242,.94));
+  box-shadow:inset 0 1px 0 #fff,0 28px 80px rgba(178,84,124,.17);
+}
+.chat-card::before{background:radial-gradient(ellipse at 0% 0%,rgba(255,211,227,.28),transparent 38%),radial-gradient(ellipse at 100% 100%,rgba(239,167,195,.2),transparent 40%)}
+.chat-head{
+  color:#9f3b67;
+  border-bottom-color:rgba(213,112,151,.18);
+  background:linear-gradient(100deg,rgba(255,224,236,.78),rgba(255,255,255,.76) 48%,rgba(255,231,241,.75));
+  box-shadow:0 8px 25px rgba(182,86,126,.055);
+}
+.chat-head h2,.room-heading h2{color:#9e3e66}
+.chat-head small,.room-heading small{color:#ad8496}
+.room-overline{color:#cb6c91}
+.room-overline>i{background:#eb7da6;box-shadow:0 0 9px rgba(226,102,151,.55)}
+.room-online-dot{background:#45bf87;box-shadow:0 0 7px rgba(69,191,135,.42)}
+.live-pill{
+  color:#a34f70;border-color:rgba(223,132,166,.25);
+  background:linear-gradient(135deg,rgba(255,222,235,.88),rgba(255,242,247,.92));
+  box-shadow:inset 0 1px 0 #fff,0 4px 15px rgba(189,90,131,.06);
+}
+.live-pill i{background:#48c58d;box-shadow:0 0 8px rgba(72,197,141,.45)}
+.messages{
+  color:#66394d;
+  background:radial-gradient(ellipse at 50% 0%,rgba(255,218,234,.24),transparent 56%),radial-gradient(ellipse at 100% 76%,rgba(255,230,240,.24),transparent 38%);
+}
+.day-sep span{
+  color:#b27c94;border-color:rgba(218,139,169,.23);
+  background:rgba(255,255,255,.82);
+  box-shadow:0 3px 10px rgba(185,92,132,.05);
+}
+.message-profile-name{color:#ba527e}
+.message-profile-name:hover{color:#d13e78}
+.message-meta time{color:#b28b9d}
+.bubble{
+  color:#704255;
+  border-color:rgba(214,139,169,.25);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,247,250,.94) 58%,rgba(255,232,241,.82));
+  box-shadow:inset 0 1px 0 #fff,0 5px 16px rgba(175,91,128,.09);
+  -webkit-backdrop-filter:blur(17px) saturate(150%);backdrop-filter:blur(17px) saturate(150%);
+}
+.bubble::after{background:linear-gradient(90deg,rgba(255,255,255,.96),transparent)}
+.mine .bubble{
+  color:#fff;border-color:rgba(232,115,159,.5);
+  background:linear-gradient(135deg,#f69aba 0%,#ed79a4 54%,#dc5b8e 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.58),0 8px 22px rgba(221,89,140,.2);
+}
+.mine .bubble::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent)}
+.message-row.mentioned .bubble{border-color:#e8ad73;background:#fff7ec}
+
+/* Rose floating composer and icon buttons */
+.composer-wrap{background:linear-gradient(180deg,transparent,rgba(255,232,241,.42))}
+.composer,.composer.glass{
+  color:#68374d;border-color:rgba(217,126,161,.32);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,245,249,.95) 54%,rgba(255,231,241,.94));
+  box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgba(214,123,160,.07),0 12px 31px rgba(176,83,123,.14);
+}
+.composer::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.98),transparent)}
+.composer input{color:#713d54!important;-webkit-text-fill-color:#713d54}
+.composer input::placeholder{color:#bd9aaa}
+.emoji-btn,.voice-record-button{
+  color:#c85d88;border-color:rgba(214,119,157,.22);
+  background:linear-gradient(145deg,#fff,#ffedf4);
+  box-shadow:inset 0 1px 0 #fff,0 3px 9px rgba(181,90,132,.07);
+}
+.emoji-btn:hover,.voice-record-button:hover{color:#ad3e6e;background:#ffe0eb}
+.voice-record-button{color:#d24f86;background:linear-gradient(145deg,#fff1f6,#ffdce9);border-color:#f1bbd0}
+.send{
+  color:#fff;border-color:rgba(255,255,255,.9);
+  background:linear-gradient(145deg,#f7a5c2,#ec6f9e 58%,#d94e85);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.67),0 6px 19px rgba(218,75,129,.25);
+}
+.send svg{filter:none}
+.send:disabled{opacity:.3;filter:saturate(.65)}
+.to-bottom{
+  color:#c35a85;border-color:rgba(214,119,157,.25);
+  background:rgba(255,255,255,.9);
+  box-shadow:0 10px 25px rgba(179,85,125,.14);
+}
+.suggest,.picker,.message-reaction-picker{
+  color:#713c53;border-color:rgba(216,128,163,.3);
+  background:rgba(255,249,252,.96);
+  -webkit-backdrop-filter:blur(26px) saturate(145%);backdrop-filter:blur(26px) saturate(145%);
+  box-shadow:0 18px 42px rgba(177,79,119,.15),inset 0 1px 0 #fff;
+}
+.picker button,.message-reaction-picker button{color:#9e426a}
+.picker button:hover,.message-reaction-picker button:hover{background:#ffe1ec}
+
+/* Reactions use rose chips and a clearer selected state */
+.message-reaction,.add-message-reaction{
+  color:#a44770;border-color:rgba(210,111,151,.28);
+  background:rgba(255,255,255,.92);
+  -webkit-backdrop-filter:blur(12px) saturate(145%);backdrop-filter:blur(12px) saturate(145%);
+  box-shadow:0 3px 9px rgba(177,85,125,.06);
+}
+.message-reaction span:last-child{color:#9d4a6e}
+.message-reaction.mine{
+  color:#fff;border-color:#ed8eaf;
+  background:linear-gradient(110deg,#f4a2bd,#e96b9c);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.52),0 3px 11px rgba(220,92,143,.18);
+}
+.message-reaction.mine span:last-child{color:#fff}
+.add-message-reaction{color:#c15a85;background:#fff6fa}
+.message-reaction-picker button:hover{background:#ffe0eb}
+
+/* Voice recordings and players */
+.voice-bubble{
+  border-color:rgba(218,129,164,.28);
+  background:linear-gradient(145deg,#fff,#fff0f6),rgba(255,255,255,.9);
+  box-shadow:inset 0 1px 0 #fff,0 6px 18px rgba(177,85,125,.08);
+}
+.voice-play-button{
+  color:#fff;border-color:rgba(255,255,255,.8);
+  background:linear-gradient(145deg,#f5a0bd,#e76a9a 64%,#d64c84);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 6px 16px rgba(211,82,133,.2);
+}
+.voice-waveform i{background:rgba(196,126,155,.4)}
+.voice-waveform i.heard{background:linear-gradient(180deg,#f7a7c5,#dc5b91);box-shadow:0 0 5px rgba(218,91,143,.2)}
+.voice-player-time{color:#a87a90}
+.voice-player-mic{color:#db6797}
+.voice-seek{accent-color:#e66b9b}
+.voice-recording-panel,.voice-preview-panel{
+  color:#763e57;border-color:rgba(215,125,160,.3);
+  background:linear-gradient(125deg,rgba(255,255,255,.98),rgba(255,234,242,.97));
+  box-shadow:inset 0 1px 0 #fff,0 12px 30px rgba(178,82,124,.12);
+}
+.voice-recording-indicator{color:#d54e7f}
+.voice-recording-indicator i{background:#e95183;box-shadow:0 0 10px rgba(233,81,131,.45)}
+.voice-recording-meter i{background:repeating-linear-gradient(90deg,rgba(231,111,158,.9) 0 2px,transparent 2px 7px)}
+.voice-cancel-button,.voice-stop-button,.voice-send-button,.voice-discard-button{
+  color:#a44770;border-color:rgba(213,114,153,.25);background:#fff8fb;
+}
+.voice-stop-button,.voice-send-button{
+  color:#fff;background:linear-gradient(115deg,#f39ab8,#e26191);border-color:#f6cede;
+}
+.voice-discard-button{color:#c4527d}
+.voice-message-player.failed .voice-player-time{color:#cc537b}
+
+/* Profile editor, public profile and settings: bright blush glass */
+.profile-settings-shell,.public-profile-card{
+  color:#6c3a50;border-color:rgba(219,132,166,.36);
+  background:radial-gradient(ellipse at 50% -12%,rgba(255,255,255,.98),transparent 53%),linear-gradient(155deg,rgba(255,255,255,.98),rgba(255,247,250,.97) 60%,rgba(255,232,241,.96));
+  -webkit-backdrop-filter:blur(32px) saturate(150%);backdrop-filter:blur(32px) saturate(150%);
+  box-shadow:inset 0 1px 0 #fff,0 30px 85px rgba(180,79,121,.18);
+}
+.profile-settings-cover,.public-profile-cover{
+  background:radial-gradient(ellipse at 50% -24%,rgba(255,255,255,.92),transparent 61%),radial-gradient(ellipse at 95% 15%,rgba(255,186,211,.42),transparent 42%),linear-gradient(145deg,#ffeaf2,#ffdce9 65%,#ffedf4);
+}
+.profile-settings-back,.profile-settings-live{color:#af5478}
+.profile-settings-live i{background:#43bf87;box-shadow:0 0 8px rgba(67,191,135,.45)}
+.profile-settings-cover h2,.public-profile-body h2{color:#9e3c66}
+.profile-settings-cover>p,.public-profile-username{color:#b36b89}
+.profile-current-bio,.public-profile-bio{color:#88586e}
+.profile-photo-button{
+  color:#fff;border-color:#fff;
+  background:linear-gradient(145deg,#f7a7c4,#e96c9d);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 7px 18px rgba(212,83,133,.2);
+}
+.profile-photo-remove{color:#b34a75;border-color:#f0cada;background:#fff4f8}
+.profile-tabs{border-bottom-color:rgba(207,113,151,.18);background:rgba(255,238,245,.72)}
+.profile-tabs button{color:#ac7188}
+.profile-tabs button.active{
+  color:#b2386b;border-color:rgba(225,111,156,.25);
+  background:linear-gradient(115deg,#fff,#ffe3ed);
+  box-shadow:inset 0 1px 0 #fff,0 4px 14px rgba(201,91,137,.08);
+}
+.profile-tabs button.active svg{color:#dc5d91}
+.profile-tab-content{color:#704358}
+.profile-section-heading h3{color:#9e3d65}
+.profile-section-heading>span,.profile-bio-count{color:#b17b93}
+.profile-edit-form>label,.profile-tab-content>.profile-edit-form>label{color:#aa4a72}
+.profile-username-input>span{color:#d25b8a}
+.profile-setting-row,.profile-setting-link,.profile-visibility-options button{
+  color:#844a63;border-color:rgba(214,132,165,.2);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,241,247,.93));
+  box-shadow:inset 0 1px 0 #fff,0 4px 12px rgba(183,91,131,.045);
+}
+.profile-setting-row b,.profile-setting-link b,.profile-visibility-options b{color:#7d405a}
+.profile-setting-row small,.profile-setting-link small,.profile-visibility-options small{color:#ac8295}
+.profile-settings-label{color:#c2608b}
+.profile-switch{border-color:#f0cede;background:#f9e6ee}
+.profile-switch i{background:#fff;box-shadow:0 1px 4px rgba(130,65,91,.2)}
+.profile-switch.on{border-color:#e987ac;background:linear-gradient(100deg,#f4a0bd,#e66b9b);box-shadow:0 0 10px rgba(220,91,141,.15)}
+.profile-visibility-options button{color:#bc658d}
+.profile-visibility-options button.selected{border-color:#e997b5;background:#fff0f6;color:#c84f80}
+.profile-visibility-options small{color:#aa8195}
+.profile-setting-icon{color:#d85f90;background:#ffe6ef}
+.profile-logout-button{color:#cf527e;border-color:rgba(225,104,149,.23);background:#fff0f5}
+.public-profile-status{color:#a8788e;border-color:#f0d8e2;background:#fff5f9}
+.public-profile-status.online{color:#319d70;background:#eafaf2}
+.public-profile-status.online i{background:#42bd86;box-shadow:0 0 7px rgba(66,189,134,.4)}
+.public-profile-actions button{color:#b34775;border-color:#efcbd9;background:#fff5f9}
+.public-profile-username,.profile-private-note{color:#a77a8e}
+.avatar-online-dot,.name-online-dot{background:#45bd86;box-shadow:0 0 8px rgba(69,189,134,.4)}
+
+/* Admin console also becomes a rose-white control panel */
+.admin-backdrop{
+  background:rgba(96,39,64,.2);
+  -webkit-backdrop-filter:blur(22px) saturate(135%);
+  backdrop-filter:blur(22px) saturate(135%);
+}
+.admin-console{
+  color:#68384e;border-color:rgba(217,128,163,.33);border-radius:28px;
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,244,248,.98) 70%,rgba(255,232,241,.97));
+  -webkit-backdrop-filter:blur(32px) saturate(150%);backdrop-filter:blur(32px) saturate(150%);
+  box-shadow:inset 0 1px 0 #fff,0 30px 90px rgba(165,70,111,.2);
+}
+.admin-sidebar{
+  color:#81465e;border-right-color:rgba(208,123,157,.19);
+  background:linear-gradient(180deg,#fff8fb,#ffedf4);
+}
+.admin-sidebar-brand{border-bottom-color:rgba(207,118,153,.2)}
+.admin-sidebar-brand b,.admin-sidebar-foot b{color:#873c61}
+.admin-sidebar-brand small,.admin-sidebar-foot small{color:#ae8195}
+.admin-sidebar-label{color:#bc7893}
+.admin-sidebar>button{color:#98627b}
+.admin-sidebar>button:hover{color:#a43c6d;background:#ffe8f0}
+.admin-sidebar>button.active{
+  color:#fff;border-color:#ef9cba;
+  background:linear-gradient(105deg,#f08caf,#df5d91);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 6px 17px rgba(211,81,133,.2);
+}
+.admin-sidebar>button>span{color:#a84671;background:rgba(255,255,255,.52)}
+.admin-sidebar-foot{border-top-color:rgba(207,118,153,.2)}
+.admin-avatar{color:#fff;background:linear-gradient(140deg,#f0a0bc,#db5f91)}
+.admin-main{color:#704055;background:transparent}
+.admin-topbar{
+  color:#753d56;border-bottom-color:rgba(211,119,154,.2);
+  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,244,248,.85));
+}
+.admin-topbar h2{color:#96385f}
+.admin-topbar p{color:#ae8194}
+.admin-stat,.admin-panel,.admin-table-wrap,.admin-message-list,.admin-activity-full,.admin-code-list{
+  color:#704055;border-color:rgba(215,132,164,.22);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,241,247,.96));
+  box-shadow:inset 0 1px 0 #fff,0 8px 22px rgba(179,86,127,.065);
+}
+.admin-stat>span,.admin-view-heading p,.admin-panel-head p{color:#ac7c91}
+.admin-stat>b{color:#a23e69}
+.admin-stat>small{color:#ba849a}
+.admin-panel-head h3,.admin-view-heading h3{color:#913b63}
+.admin-table th{color:#a75d7e;background:#fff0f5;border-bottom-color:#f0d8e3}
+.admin-table td{color:#83566a;border-bottom-color:#f3e0e8}
+.admin-member b{color:#824158}
+.admin-member small{color:#b18497}
+.admin-status.active{color:#278b65;background:#e4f8ed}
+.admin-status.banned{color:#c84e72;background:#ffebf1}
+.admin-row-actions button,.admin-message-row>button{
+  color:#bb4e7d;border-color:#f0c9d8;background:#fff5f8;
+}
+.admin-row-actions button.danger,.admin-message-row>button.danger{color:#cf5275;border-color:#f1cad7;background:#fff0f4}
+.admin-quick>button{
+  color:#c35484;border-color:rgba(219,128,163,.18);
+  background:linear-gradient(145deg,#fff,#ffedf4);
+}
+.admin-quick>button b{color:#873e60}
+.admin-quick>button small{color:#ad8195}
+.admin-quick>button:hover{background:#ffe3ed;border-color:#efb4ca}
+.admin-activity-row b,.admin-activity-full-row b{color:#87435f}
+.admin-activity-row small,.admin-activity-full-row small{color:#ad8094}
+.admin-activity-icon{color:#d65c8f;background:#ffe4ee}
+.admin-message-copy b{color:#87415e}
+.admin-message-copy p{color:#875c70}
+.admin-message-copy time,.admin-activity-full-row>time{color:#b28a9d}
+.admin-code-list>div{border-bottom-color:#f1dce5}
+.admin-code-list>div>span{color:#87445f}
+.admin-code-list b.available{color:#269365}
+.admin-code-list b.used{color:#ae8a99}
+.admin-search,.admin-top-actions>button{
+  color:#ba557f;border-color:#efd0dc;background:#fff7fa;
+}
+.admin-search input{color:#813f5c!important;-webkit-text-fill-color:#813f5c}
+.admin-footer{color:#b18498;border-top-color:#efdbe4;background:rgba(255,250,252,.8)}
+.admin-footer svg{color:#d45b8c}
+.admin-login-card{
+  color:#753d56;border-color:rgba(218,127,161,.3);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,240,246,.96));
+  -webkit-backdrop-filter:blur(32px) saturate(150%);backdrop-filter:blur(32px) saturate(150%);
+  box-shadow:inset 0 1px 0 #fff,0 25px 75px rgba(169,73,113,.18);
+}
+.admin-login-card h2{color:#9e3b66}
+.admin-login-card>p{color:#9c7184}
+.admin-login-card label{color:#a74872}
+.admin-kicker{color:#c36c91}
+.admin-login-card>small{color:#b17e94}
+.admin-error,.admin-alert{color:#c94970;background:#fff0f4}
+.admin-notice{color:#278b65;background:#e9f8ef}
+.admin-primary{color:#fff;background:linear-gradient(110deg,#f18ab0,#e85d91 54%,#d94b83)}
+
+/* Popovers, notifications, codes and status messages */
+.modal-backdrop,.profile-backdrop{
+  background:rgba(114,49,77,.22);
+  -webkit-backdrop-filter:blur(18px) saturate(130%);
+  backdrop-filter:blur(18px) saturate(130%);
+}
+.toast{
+  color:#873e5e;border-color:rgba(219,120,157,.26);
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,233,242,.96));
+  -webkit-backdrop-filter:blur(26px) saturate(145%);backdrop-filter:blur(26px) saturate(145%);
+  box-shadow:inset 0 1px 0 #fff,0 16px 40px rgba(166,70,111,.18);
+}
+.error,.admin-error{color:#c54970}
+.success{color:#31956f}
+.badge,.status-pill{color:#b34c77}
+.code-history{background:#fff4f8;border-color:#f0d4e0}
+.code-history code{color:#a34269}
+.member-line{border-bottom-color:#f3e0e8}
+.member-line .who b{color:#81445d}
+.member-line .who small{color:#b18a9b}
+.rm-btn{color:#c65a7f;background:#fff0f4}
+.mini-btn{color:#bd5b83;background:#fff5f8}
+
+/* Data Saver keeps the rose palette while reducing expensive effects */
+.data-saver .liquid-bg{filter:none!important}
+.data-saver .blob{animation:none!important;opacity:.1}
+.data-saver .glass,.data-saver .glass::before{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.data-saver .message-row,.data-saver .orb{animation:none!important}
+
+/* Mobile uses the same pink palette, not the old blue glass fallbacks */
+@media(max-width:900px),(hover:none){
+  .blob{filter:blur(34px);mix-blend-mode:multiply;opacity:.14}
+  .glass{
+    color:#67394e!important;
+    -webkit-backdrop-filter:blur(17px) saturate(145%)!important;
+    backdrop-filter:blur(17px) saturate(145%)!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 10px 28px rgba(170,78,119,.09);
+  }
+  .topbar.glass{background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,238,245,.95))}
+  .chat-card.glass{background:linear-gradient(155deg,rgba(255,255,255,.97),rgba(255,246,249,.97) 65%,rgba(255,234,242,.96))}
+  .composer.glass{background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,239,246,.96))}
+  .gate-card.glass{background:linear-gradient(145deg,rgba(255,255,255,.99),rgba(255,243,248,.98) 65%,rgba(255,232,241,.97))}
+  .bubble{-webkit-backdrop-filter:blur(12px) saturate(140%);backdrop-filter:blur(12px) saturate(140%)}
+  .mine .bubble{background:linear-gradient(135deg,#f6a4c0,#eb78a2 55%,#de5e91)}
+  .avatar{box-shadow:0 3px 10px rgba(170,79,119,.12)}
+}
+@media(max-width:640px){
+  .topbar{box-shadow:inset 0 1px 0 #fff,0 8px 23px rgba(184,83,125,.13)}
+  .gate-card{box-shadow:inset 0 1px 0 #fff,0 17px 50px rgba(180,77,118,.13)}
+  .chat-card{box-shadow:inset 0 1px 0 #fff,0 18px 50px rgba(180,77,118,.14)}
+}
+@media(prefers-reduced-motion:reduce){
+  .glass::before,.blob{animation:none!important}
+}
