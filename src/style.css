@@ -2427,3 +2427,75 @@ html[data-theme="dark"] .message-info-empty{color:#c5a2b4}
   .message-more-button{width:28px;height:26px;opacity:.8}
   .message-footer-row{min-height:24px}
 }
+
+/* WhatsApp-style double ticks inside the lower-right corner of outgoing bubbles */
+.message-bubble-frame{
+  position:relative;
+  display:inline-block;
+  vertical-align:top;
+  max-width:100%;
+  min-width:0;
+  touch-action:pan-y;
+  -webkit-touch-callout:none;
+}
+.message-bubble-frame>.bubble{
+  display:block;
+  max-width:100%;
+  padding-bottom:25px;
+  user-select:text;
+}
+.message-bubble-frame>.voice-bubble{
+  position:relative;
+  padding-bottom:24px;
+}
+.message-corner-ticks{
+  position:absolute;
+  right:8px;
+  bottom:5px;
+  z-index:2;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:16px;
+  padding:0;
+  border:0;
+  border-radius:5px;
+  color:rgba(255,255,255,.62);
+  background:transparent;
+  cursor:pointer;
+  opacity:.88;
+  transition:color .15s ease,opacity .15s ease,transform .15s ease;
+}
+.message-corner-ticks svg{
+  width:16px;height:16px;stroke-width:2.15;
+}
+.message-corner-ticks.sent,
+.message-corner-ticks.delivered{color:rgba(255,255,255,.66)}
+.message-corner-ticks.read{color:#8bd5ff}
+.message-corner-ticks:hover{opacity:1;transform:scale(1.08)}
+.message-corner-ticks:active{transform:scale(.94)}
+.message-corner-ticks:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.message-footer-row{min-height:16px;margin-top:1px}
+.message-footer-row .message-actions{margin-left:auto}
+.message-more-button{width:22px;height:18px;opacity:.35}
+.message-row:hover .message-more-button,
+.message-more-button[aria-expanded="true"]{opacity:.95}
+
+/* Light pink theme */
+.message-corner-ticks.sent,
+.message-corner-ticks.delivered{color:#a98799}
+.message-corner-ticks.read{color:#477fe2}
+html[data-theme="dark"] .message-corner-ticks.sent,
+html[data-theme="dark"] .message-corner-ticks.delivered{color:#c5a9b8}
+html[data-theme="dark"] .message-corner-ticks.read{color:#87caff}
+
+@media(hover:none){
+  .message-more-button{opacity:.72}
+  .message-corner-ticks{opacity:1}
+}
+@media(max-width:640px){
+  .message-bubble-frame>.bubble{padding-bottom:25px}
+  .message-bubble-frame>.voice-bubble{padding-bottom:24px}
+  .message-corner-ticks{right:8px;bottom:5px}
+}
