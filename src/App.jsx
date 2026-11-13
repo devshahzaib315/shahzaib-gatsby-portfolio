@@ -677,8 +677,8 @@ function App() {
             {adminTab === 'dashboard' && <div className="admin-view">
               <div className="admin-stat-grid">
                 <div className="admin-stat"><span>Total Users</span><b>{adminData?.stats?.total_members ?? 0}</b><small><Users size={14}/> Room members</small></div>
-                <div className="admin-stat"><span>Recent Messages</span><b>{adminData?.stats?.total_messages ?? 0}</b><small><MessageSquare size={14}/> Latest 80 in the room</small></div>
-                <div className="admin-stat"><span>Active in 24 hours</span><b>{adminData?.stats?.active_24h ?? 0}</b><small><Activity size={14}/> Based on last seen</small></div>
+                <div className="admin-stat"><span>Total Messages</span><b>{adminData?.stats?.total_messages ?? 0}</b><small><MessageSquare size={14}/> All room messages</small></div>
+                <div className="admin-stat"><span>New Members (24h)</span><b>{adminData?.stats?.new_24h ?? 0}</b><small><Activity size={14}/> Recent registrations</small></div>
                 <div className="admin-stat"><span>Banned Users</span><b>{adminData?.stats?.banned_members ?? 0}</b><small><BanIcon size={14}/> Restricted accounts</small></div>
               </div>
               <div className="admin-dashboard-grid">
