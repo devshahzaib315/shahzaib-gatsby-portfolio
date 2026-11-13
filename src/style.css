@@ -2499,3 +2499,35 @@ html[data-theme="dark"] .message-corner-ticks.read{color:#87caff}
   .message-bubble-frame.has-corner-ticks>.voice-bubble{padding-bottom:24px}
   .message-corner-ticks{right:8px;bottom:5px}
 }
+
+/* Long-press context menu: anchored to the selected message, never shown by default */
+.message-actions-menu-hold{
+  position:absolute;
+  z-index:40;
+  right:0;
+  bottom:30px;
+  left:auto;
+  min-width:168px;
+  padding:7px;
+  border:1px solid rgba(211,117,153,.3);
+  border-radius:15px;
+  background:rgba(255,250,252,.98);
+  -webkit-backdrop-filter:blur(26px) saturate(160%);
+  backdrop-filter:blur(26px) saturate(160%);
+  box-shadow:0 16px 38px rgba(145,64,100,.23),inset 0 1px 0 #fff;
+  animation:message-hold-menu-in .16s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes message-hold-menu-in{
+  from{opacity:0;transform:translateY(5px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.message-bubble-frame{cursor:context-menu}
+.message-bubble-frame .bubble,.message-bubble-frame .voice-bubble{user-select:text;-webkit-user-select:text}
+html[data-theme="dark"] .message-actions-menu-hold{
+  border-color:rgba(246,177,207,.22);
+  background:rgba(47,28,46,.98);
+  box-shadow:0 16px 38px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,231,242,.12);
+}
+@media(max-width:640px){
+  .message-actions-menu-hold{right:0;bottom:26px;min-width:160px}
+}
