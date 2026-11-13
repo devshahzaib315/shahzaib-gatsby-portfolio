@@ -142,10 +142,12 @@ const MessageRow = memo(function MessageRow({
 }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body || ''), [mine, me, m.body]);
   const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
   const rowRef = useRef(null);
   const holdTimerRef = useRef(null);
+  const swipeStartRef = useRef(null);
+  const swipeTriggeredRef = useRef(false);
   const onVisibleRef = useRef(onVisible);
   onVisibleRef.current = onVisible;
   useEffect(() => {
@@ -207,27 +209,68 @@ const MessageRow = memo(function MessageRow({
         </button>}
         <div
           className={`message-bubble-frame ${mine ? 'has-corner-ticks' : ''}`}
+          style={swipeOffset > 0 ? { transform: `translateX(${Math.min(9, swipeOffset * 0.12)}px)` } : undefined}
           onPointerDown={event => {
             if (!['touch','pen','mouse'].includes(event.pointerType)) return;
             if (event.target instanceof Element && event.target.closest('button,a,input,audio')) return;
+            swipeStartRef.current = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
+            swipeTriggeredRef.current = false;
             if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
             holdTimerRef.current = window.setTimeout(() => {
               holdTimerRef.current = null;
-              setPickerOpen(false);
-              setActionsOpen(true);
+              if (!swipeTriggeredRef.current) setActionsOpen(true);
             }, 560);
           }}
-          onPointerUp={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
-          onPointerLeave={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
-          onPointerCancel={() => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }}
+          onPointerMove={event => {
+            const startPoint = swipeStartRef.current;
+            if (!startPoint || swipeTriggeredRef.current) return;
+            const dx = event.clientX - startPoint.x;
+            const dy = event.clientY - startPoint.y;
+            if (Math.abs(dx) > 9 || Math.abs(dy) > 9) {
+              if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
+            if (dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+              setSwipeOffset(Math.min(75, dx));
+              if (dx >= 58) {
+                swipeTriggeredRef.current = true;
+                setActionsOpen(false);
+                setSwipeOffset(0);
+                onReply(m);
+              }
+            } else if (Math.abs(dy) > Math.abs(dx)) {
+              setSwipeOffset(0);
+            }
+          }}
+          onPointerUp={() => {
+            if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+            swipeStartRef.current = null;
+            setSwipeOffset(0);
+            swipeTriggeredRef.current = false;
+          }}
+          onPointerLeave={() => {
+            if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+            swipeStartRef.current = null;
+            setSwipeOffset(0);
+            swipeTriggeredRef.current = false;
+          }}
+          onPointerCancel={() => {
+            if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+            swipeStartRef.current = null;
+            setSwipeOffset(0);
+            swipeTriggeredRef.current = false;
+          }}
           onContextMenu={event => {
             event.preventDefault();
             if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
             holdTimerRef.current = null;
-            setPickerOpen(false);
             setActionsOpen(true);
           }}
         >
+          {swipeOffset > 8 && <span className="message-swipe-reply-hint" style={{ opacity: Math.min(1, swipeOffset / 58) }}><ReplyIcon size={17}/></span>}
           {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
           {mine && <button
             type="button"
@@ -237,12 +280,14 @@ const MessageRow = memo(function MessageRow({
             title="Message status · Hold message for details"
           ><CheckCheck size={15}/></button>}
         </div>
-        <div className="message-reaction-row">
+        {summary.length > 0 && <div className="message-reaction-row">
           {summary.map(item => <button type="button" key={item.reaction} className={"message-reaction " + (item.mine ? "mine" : "")} onClick={() => onReact(m.id, item.reaction)} disabled={reactionBusy} aria-label={item.reaction + ' reaction, ' + item.count + ' people'} title={item.mine ? 'Remove your reaction' : 'React with ' + item.reaction}><Emoji char={item.reaction}/><span>{item.count}</span></button>)}
-          <button type="button" className="add-message-reaction" onClick={() => setPickerOpen(open => !open)} aria-label="Add reaction" aria-expanded={pickerOpen} disabled={reactionBusy}><Smile size={15}/></button>
-          {pickerOpen && <div className="message-reaction-picker" role="group" aria-label="Choose a reaction">{REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setPickerOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction}><Emoji char={reaction}/></button>)}</div>}
-        </div>
+        </div>}
         {actionsOpen && <div className="message-actions-menu message-actions-menu-hold" role="menu" aria-label="Message actions" onPointerDown={event => event.stopPropagation()}>
+          <div className="message-hold-reactions" role="group" aria-label="React to message">
+            {REACTION_OPTIONS.map(reaction => <button type="button" key={reaction} onClick={() => { setActionsOpen(false); onReact(m.id, reaction); }} disabled={reactionBusy} aria-label={'React with ' + reaction} title={'React with ' + reaction}><Emoji char={reaction}/></button>)}
+          </div>
+          <div className="message-hold-menu-divider"/>
           <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
           {mine && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
           {mine && m.message_type === 'text' && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
