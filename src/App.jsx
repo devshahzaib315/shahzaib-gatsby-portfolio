@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, configured } from './supabase';
-import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown } from 'lucide-react';
+import { ShieldCheck, LockKeyhole, MessageCircle, Users, Send, Copy, Plus, LogOut, KeyRound, Smile, Download, Sparkles, Mail, Camera, Trash2, UserMinus, ChevronDown, LayoutDashboard, MessageSquare, Activity, Search as SearchIcon, RefreshCw, Ban as BanIcon, CheckCircle2, Clock3 } from 'lucide-react';
 
 const BASE = import.meta.env.VITE_SUPABASE_URL;
 const FN = `${BASE}/functions/v1`;
@@ -106,6 +106,10 @@ function App() {
   const [code, setCode] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminData, setAdminData] = useState(null);
+  const [adminTab, setAdminTab] = useState('dashboard');
+  const [adminSearch, setAdminSearch] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [dpBusy, setDpBusy] = useState(false);
   const [newCode, setNewCode] = useState('');
@@ -222,13 +226,12 @@ function App() {
   }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4200); return () => clearTimeout(t); }, [toast]);
 
-  // Owner only: keep the member list fresh while the owner is unlocked.
-  const ownerUnlocked = owner !== null;
+  // Keep the owner dashboard fresh while its protected console is open.
   useEffect(() => {
-    if (!ownerUnlocked || !adminPass) return;
-    const t = setInterval(() => { adminCall('members').then(setOwner).catch(() => {}); }, 20000);
+    if (!adminOpen || !adminUnlocked || !adminPass) return;
+    const t = setInterval(() => { loadAdminDashboard().catch(() => {}); }, 30000);
     return () => clearInterval(t);
-  }, [ownerUnlocked, adminPass]);
+  }, [adminOpen, adminUnlocked, adminPass]);
 
   function onScroll() {
     const el = listRef.current; if (!el) return;
@@ -404,24 +407,94 @@ function App() {
     if (!response.ok) throw new Error(data.error || 'Request failed.');
     return data;
   }
+  async function loadAdminDashboard() {
+    const data = await adminCall('dashboard');
+    setAdminData(data);
+    setOwner({ count: data.stats?.total_members || 0, members: data.members || [] });
+    return data;
+  }
+  async function unlockAdmin() {
+    setError(''); setNotice(''); setBusy(true);
+    try {
+      await loadAdminDashboard();
+      setAdminUnlocked(true); setAdminTab('dashboard');
+    } catch (err) { setError(err.message || 'Admin access could not be verified.'); }
+    finally { setBusy(false); }
+  }
+  async function refreshAdmin() {
+    try { await loadAdminDashboard(); setToast('Dashboard refreshed.'); }
+    catch (err) { setError(err.message); }
+  }
   async function makeCode() {
     setError(''); setNotice(''); setBusy(true);
-    try { const data = await adminCall('create'); setNewCode(data.code); setNotice('New one-time activation code generated.'); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
+    try {
+      const data = await adminCall('create');
+      setNewCode(data.code); setNotice('New one-time activation code generated.');
+      await loadAdminDashboard();
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   }
-  async function fetchCodes() { setError(''); try { setCodes((await adminCall('list')).codes || []); } catch (err) { setError(err.message); } }
-  async function fetchMembers() { setError(''); try { setOwner(await adminCall('members')); } catch (err) { setError(err.message); } }
+  async function fetchCodes() {
+    setError('');
+    try {
+      const data = await adminCall('list');
+      setCodes(data.codes || []);
+      setAdminData(prev => prev ? { ...prev, codes: data.codes || [] } : prev);
+    } catch (err) { setError(err.message); }
+  }
+  async function fetchMembers() {
+    setError('');
+    try {
+      const data = await adminCall('members');
+      setOwner(data);
+      setAdminData(prev => prev ? { ...prev, members: data.members || [], stats: { ...prev.stats, total_members: data.count } } : prev);
+    } catch (err) { setError(err.message); }
+  }
+  async function toggleMemberBan(m) {
+    if (m.user_id === myId) { setToast('You cannot ban your own account.'); return; }
+    const action = m.is_banned ? 'unban' : 'ban';
+    const reason = action === 'ban' ? (window.prompt('Reason for this ban (optional):') || '').trim() : '';
+    if (action === 'ban' && !window.confirm(`Ban ${m.nickname} from Shahzaib Room?`)) return;
+    if (action === 'unban' && !window.confirm(`Unban ${m.nickname}?`)) return;
+    setBusy(true); setError('');
+    try {
+      await adminCall(action, { user_id: m.user_id, reason, actor_user_id: myId });
+      await loadAdminDashboard();
+      setToast(action === 'ban' ? `${m.nickname} has been banned.` : `${m.nickname} has been unbanned.`);
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+  async function deleteAdminMessage(m) {
+    if (!window.confirm('Permanently delete this message? This cannot be undone.')) return;
+    setBusy(true); setError('');
+    try {
+      await adminCall('delete-message', { message_id: m.id });
+      setMessages(prev => prev.filter(x => Number(x.id) !== Number(m.id)));
+      await loadAdminDashboard();
+      setToast('Message deleted.');
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
   async function removeMember(m) {
     if (m.user_id === myId) { setToast('You cannot remove yourself.'); return; }
     if (!window.confirm(`Remove "${m.nickname}" from the room?`)) return;
-    const delMsgs = window.confirm('Also delete their previous messages?\n\nOK = yes, delete their messages too\nCancel = keep their messages');
-    setError('');
+    const delMsgs = window.confirm('Also delete their previous messages?\\n\\nOK = yes, delete their messages too\\nCancel = keep their messages');
+    setError(''); setBusy(true);
     try {
-      await adminCall('remove', { user_id: m.user_id, delete_messages: delMsgs });
-      setOwner(await adminCall('members'));
+      await adminCall('remove', { user_id: m.user_id, delete_messages: delMsgs, actor_user_id: myId });
       if (delMsgs) setMessages(prev => prev.filter(x => x.user_id !== m.user_id));
+      await loadAdminDashboard();
       setToast(`${m.nickname} was removed.`);
     } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+  async function openAdminConsole() {
+    setAdminOpen(true); setAdminUnlocked(false); setAdminData(null);
+    setAdminTab('dashboard'); setAdminSearch(''); setError(''); setNotice('');
+  }
+  function closeAdminConsole() {
+    setAdminOpen(false); setAdminUnlocked(false); setAdminData(null);
+    setAdminPass(''); setAdminSearch(''); setError(''); setNotice('');
   }
 
   async function copy(text) { await navigator.clipboard.writeText(text); setToast('Copied to clipboard.'); }
@@ -474,7 +547,7 @@ function App() {
       <div className="top-right">
         {!standalone && <button className="icon-btn" title="Install on your phone" onClick={installApp}><Download size={18}/></button>}
         {owner && <button className="owner-chip" title="Members (only you can see this)" onClick={() => setAdminOpen(true)}><Users size={14}/> {owner.count}</button>}
-        <button className="icon-btn" title="Owner" onClick={() => { setAdminOpen(!adminOpen); setError(''); }}><ShieldCheck size={18}/></button>
+        <button className="icon-btn" title="Admin Console" onClick={openAdminConsole}><ShieldCheck size={18}/></button>
         {view === 'chat' && <button className="me-btn" title="My profile" onClick={() => setProfileOpen(true)}><Avatar name={me} url={profile?.avatar} cls="sm"/></button>}
         {view === 'chat' && <button className="icon-btn" title="Leave room" onClick={leave}><LogOut size={18}/></button>}
       </div>
@@ -564,26 +637,99 @@ function App() {
       {error && <p className="error">{error}</p>}
     </div></div>}
 
-    {adminOpen && <div className="modal-backdrop" onClick={() => setAdminOpen(false)}><div className="admin-modal glass" onClick={e => e.stopPropagation()}>
-      <button className="close" onClick={() => setAdminOpen(false)}>×</button>
-      <div className="eyebrow"><span/> OWNER ACCESS</div>
-      <h2>Owner console</h2>
-      <p>Only the room owner can view invitations, members and their emails.</p>
-      <label>Admin password</label>
-      <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Enter your admin password"/>
-      <button className="primary" onClick={makeCode} disabled={busy}><Plus size={17}/> GENERATE ONE-TIME CODE</button>
-      {newCode && <div className="generated"><small>NEW ACTIVATION CODE</small><strong>{newCode}</strong><button onClick={() => copy(newCode)}><Copy size={15}/> Copy code</button></div>}
-      <div className="row2"><button className="secondary" onClick={fetchCodes}>Code history</button><button className="secondary" onClick={fetchMembers}><Users size={14}/> View members</button></div>
-      {owner && <div className="members-box"><div className="members-count"><b>{owner.count}</b><span>members</span></div>{owner.members.map(m => <div className="member-line" key={m.user_id}>
-        <Avatar name={m.nickname} url={AVATAR_URL(m.user_id)} cls="sm"/>
-        <span className="who"><b>{m.nickname}</b><small>{m.email || 'no email'}</small></span>
-        {m.email && <button className="mini-btn" title="Copy email" onClick={() => copy(m.email)}><Copy size={14}/></button>}
-        <button className="rm-btn" title="Remove from room" onClick={() => removeMember(m)}><UserMinus size={15}/></button>
-      </div>)}</div>}
-      {codes.length > 0 && <div className="code-history">{codes.map((c, i) => <div key={i}><code>{c.code_hint}</code><span>{c.used_at ? 'USED' : 'AVAILABLE'}</span></div>)}</div>}
-      {error && <p className="error">{error}</p>}{notice && <p className="success">{notice}</p>}
-    </div></div>}
-
+    {adminOpen && <div className="modal-backdrop admin-backdrop" onClick={closeAdminConsole}>
+      <div className={`admin-console ${adminUnlocked ? 'unlocked' : 'locked'}`} onClick={e => e.stopPropagation()}>
+        {!adminUnlocked ? <div className="admin-login-card">
+          <button className="admin-close" onClick={closeAdminConsole} aria-label="Close admin console">×</button>
+          <div className="admin-brand-mark"><ShieldCheck size={22}/></div>
+          <div className="admin-kicker">SHAHZAIB ROOM / SECURE ACCESS</div>
+          <h2>Admin Panel</h2>
+          <p>Unlock the private management console to moderate members and messages.</p>
+          <label>Admin password</label>
+          <input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && unlockAdmin()} placeholder="Enter your admin password" autoComplete="current-password"/>
+          <button className="admin-primary" onClick={unlockAdmin} disabled={busy || !adminPass}>{busy ? 'VERIFYING…' : 'UNLOCK ADMIN CONSOLE'} <span>↗</span></button>
+          {error && <p className="admin-error">{error}</p>}
+          <small><ShieldCheck size={13}/> Admin actions are protected and activity is recorded.</small>
+        </div> : <>
+          <aside className="admin-sidebar">
+            <div className="admin-sidebar-brand"><span><ShieldCheck size={20}/></span><div><b>Admin Panel</b><small>Management Console</small></div><button className="admin-mobile-close" onClick={closeAdminConsole}>×</button></div>
+            <div className="admin-sidebar-label">WORKSPACE</div>
+            <button className={adminTab === 'dashboard' ? 'active' : ''} onClick={() => setAdminTab('dashboard')}><LayoutDashboard size={17}/> Dashboard</button>
+            <button className={adminTab === 'members' ? 'active' : ''} onClick={() => setAdminTab('members')}><Users size={17}/> Members <span>{adminData?.stats?.total_members || 0}</span></button>
+            <button className={adminTab === 'messages' ? 'active' : ''} onClick={() => setAdminTab('messages')}><MessageSquare size={17}/> Messages</button>
+            <button className={adminTab === 'activity' ? 'active' : ''} onClick={() => setAdminTab('activity')}><Activity size={17}/> Activity Logs</button>
+            <button className={adminTab === 'codes' ? 'active' : ''} onClick={() => setAdminTab('codes')}><KeyRound size={17}/> Invitation Codes</button>
+            <div className="admin-sidebar-foot"><span className="admin-avatar">AD</span><div><b>Admin User</b><small>Super Admin</small></div></div>
+          </aside>
+          <section className="admin-main">
+            <header className="admin-topbar">
+              <div><div className="admin-mobile-title">Admin Panel</div><h2>{({dashboard:'Dashboard',members:'Member Management',messages:'Message Moderation',activity:'Activity Logs',codes:'Invitation Codes'})[adminTab]}</h2><p>{adminTab === 'dashboard' ? 'Welcome back, Admin' : 'Manage your private room securely'}</p></div>
+              <div className="admin-top-actions">
+                <div className="admin-search"><SearchIcon size={15}/><input value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Quick search…"/></div>
+                <button title="Refresh dashboard" onClick={refreshAdmin} disabled={busy}><RefreshCw size={17}/></button>
+                <button title="Close admin console" onClick={closeAdminConsole}>×</button>
+              </div>
+            </header>
+            {error && <div className="admin-alert">{error}</div>}
+            {adminTab === 'dashboard' && <div className="admin-view">
+              <div className="admin-stat-grid">
+                <div className="admin-stat"><span>Total Users</span><b>{adminData?.stats?.total_members ?? 0}</b><small><Users size={14}/> Room members</small></div>
+                <div className="admin-stat"><span>Messages (latest 80)</span><b>{adminData?.stats?.total_messages ?? 0}</b><small><MessageSquare size={14}/> Recent room messages</small></div>
+                <div className="admin-stat"><span>Active in 24 hours</span><b>{adminData?.stats?.active_24h ?? 0}</b><small><Activity size={14}/> Based on last seen</small></div>
+                <div className="admin-stat"><span>Banned Users</span><b>{adminData?.stats?.banned_members ?? 0}</b><small><BanIcon size={14}/> Restricted accounts</small></div>
+              </div>
+              <div className="admin-dashboard-grid">
+                <section className="admin-panel admin-panel-wide">
+                  <div className="admin-panel-head"><div><h3>Recent Activity</h3><p>Latest administrative actions</p></div><button onClick={() => setAdminTab('activity')}>View all</button></div>
+                  <div className="admin-activity-list">
+                    {(adminData?.activity || []).slice(0,6).map(item => <div className="admin-activity-row" key={item.id}><span className="admin-activity-icon"><Activity size={15}/></span><div><b>{item.action.replaceAll('_',' ')}</b><small>{item.target_nickname || 'System'} · {new Date(item.created_at).toLocaleString()}</small></div></div>)}
+                    {!adminData?.activity?.length && <div className="admin-empty">No admin activity recorded yet.</div>}
+                  </div>
+                </section>
+                <section className="admin-panel admin-quick">
+                  <div className="admin-panel-head"><div><h3>Quick Actions</h3><p>Common administration tasks</p></div></div>
+                  <button onClick={() => setAdminTab('members')}><Users size={17}/><span><b>Manage members</b><small>Ban, unban or remove members</small></span></button>
+                  <button onClick={() => setAdminTab('messages')}><MessageSquare size={17}/><span><b>Moderate messages</b><small>Delete inappropriate messages</small></span></button>
+                  <button onClick={makeCode} disabled={busy}><Plus size={17}/><span><b>Generate invitation</b><small>Create a one-time access code</small></span></button>
+                </section>
+              </div>
+            </div>}
+            {adminTab === 'members' && <div className="admin-view">
+              <div className="admin-view-heading"><div><h3>Members</h3><p>Ban, restore or remove room access. Current owner account cannot be moderated.</p></div><span>{adminData?.members?.length || 0} total</span></div>
+              <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Member</th><th>Email</th><th>Joined</th><th>Last seen</th><th>Messages</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+                {(adminData?.members || []).filter(m => `${m.nickname} ${m.username || ''} ${m.email || ''}`.toLowerCase().includes(adminSearch.toLowerCase())).map(m => <tr key={m.user_id}>
+                  <td><div className="admin-member"><Avatar name={m.nickname} url={AVATAR_URL(m.user_id)} cls="sm"/><span><b>{m.nickname}</b><small>@{m.username || 'no username'}</small></span></div></td>
+                  <td>{m.email || '—'}</td><td>{new Date(m.joined_at).toLocaleDateString()}</td><td>{m.last_seen ? new Date(m.last_seen).toLocaleString() : '—'}</td><td>{m.message_count || 0}</td>
+                  <td><span className={`admin-status ${m.is_banned ? 'banned' : 'active'}`}>{m.is_banned ? 'Banned' : 'Active'}</span></td>
+                  <td><div className="admin-row-actions"><button disabled={busy || m.user_id === myId} onClick={() => toggleMemberBan(m)} title={m.is_banned ? 'Unban member' : 'Ban member'}>{m.is_banned ? <CheckCircle2 size={15}/> : <BanIcon size={15}/>}</button><button className="danger" disabled={busy || m.user_id === myId} onClick={() => removeMember(m)} title="Remove member"><UserMinus size={15}/></button></div></td>
+                </tr>)}
+              </tbody></table>{!adminData?.members?.length && <div className="admin-empty">No members found.</div>}</div>
+            </div>}
+            {adminTab === 'messages' && <div className="admin-view">
+              <div className="admin-view-heading"><div><h3>Message Moderation</h3><p>Review recent messages and permanently remove selected messages.</p></div><span>{adminData?.messages?.length || 0} recent</span></div>
+              <div className="admin-message-list">{(adminData?.messages || []).filter(m => `${m.nickname} ${m.body}`.toLowerCase().includes(adminSearch.toLowerCase())).map(m => <article className="admin-message-row" key={m.id}><div className="admin-message-avatar">{(m.nickname || '?')[0]}</div><div className="admin-message-copy"><div><b>{m.nickname}</b><time>{new Date(m.created_at).toLocaleString()}</time></div><p>{m.body}</p></div><button className="danger" disabled={busy} onClick={() => deleteAdminMessage(m)} title="Delete message"><Trash2 size={16}/></button></article>)}
+                {!adminData?.messages?.length && <div className="admin-empty">No messages found.</div>}
+              </div>
+            </div>}
+            {adminTab === 'activity' && <div className="admin-view">
+              <div className="admin-view-heading"><div><h3>Activity Logs</h3><p>Administrative actions recorded by the server.</p></div><span>{adminData?.activity?.length || 0} events</span></div>
+              <div className="admin-activity-full">{(adminData?.activity || []).filter(a => `${a.action} ${a.target_nickname || ''}`.toLowerCase().includes(adminSearch.toLowerCase())).map(a => <div className="admin-activity-full-row" key={a.id}><span className="admin-activity-icon"><Clock3 size={15}/></span><div><b>{a.action.replaceAll('_',' ')}</b><small>{a.target_nickname || 'System'} · {a.actor || 'Owner'}</small></div><time>{new Date(a.created_at).toLocaleString()}</time></div>)}
+                {!adminData?.activity?.length && <div className="admin-empty">No activity yet. New admin actions will appear here.</div>}
+              </div>
+            </div>}
+            {adminTab === 'codes' && <div className="admin-view">
+              <div className="admin-view-heading"><div><h3>Invitation Codes</h3><p>Generate one-time codes and review their usage.</p></div><button className="admin-primary small" disabled={busy} onClick={makeCode}><Plus size={15}/> Generate code</button></div>
+              {newCode && <div className="admin-new-code"><div><small>NEW ONE-TIME CODE</small><b>{newCode}</b></div><button onClick={() => copy(newCode)}><Copy size={15}/> Copy</button></div>}
+              <div className="admin-code-list">{(adminData?.codes || codes || []).map((c,i) => <div key={i}><span><KeyRound size={15}/>{c.code_hint}</span><b className={c.used_at ? 'used' : 'available'}>{c.used_at ? 'USED' : 'AVAILABLE'}</b><small>{new Date(c.created_at).toLocaleString()}</small></div>)}
+                {!adminData?.codes?.length && <div className="admin-empty">No invitation codes yet.</div>}
+              </div>
+            </div>}
+            {notice && <div className="admin-notice">{notice}</div>}
+            <footer className="admin-footer"><ShieldCheck size={14}/> Shahzaib Room · Secure management console <span>All times shown in your local timezone</span></footer>
+          </section>
+        </>}
+      </div>
+    </div>}
     {toast && <div className="toast glass">{toast}</div>}
   </div>;
 }
