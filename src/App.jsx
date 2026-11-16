@@ -381,6 +381,12 @@ function App() {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [pinsOpen, setPinsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [polls, setPolls] = useState([]);
+  const [pollVotes, setPollVotes] = useState([]);
+  const [pollsOpen, setPollsOpen] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['','']);
+  const [pollBusy, setPollBusy] = useState(false);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -808,6 +814,9 @@ function App() {
     const { data: pinRows, error: pinError } = await supabase.from('pinned_messages').select('id,message_id,user_id,created_at');
     if (pinError) setToast('Could not load pinned messages: ' + pinError.message);
     else setPinnedMessages(pinRows || []);
+    const { data: pollRows, error: pollError } = await supabase.from('room_polls').select('*').order('created_at',{ascending:false}).limit(30);
+    if (pollError) setToast('Could not load polls: ' + pollError.message);
+    else { setPolls(pollRows || []); if (pollRows?.length) { const { data: voteRows, error: voteError } = await supabase.from('room_poll_votes').select('*').in('poll_id', pollRows.map(p => p.id)); if (voteError) setToast('Could not load poll votes: ' + voteError.message); else setPollVotes(voteRows || []); } else setPollVotes([]); }
     const ids = rows.map(row => row.id);
     if (ids.length) {
       const { data: reactionRows, error: reactionsError } = await supabase.from('message_reactions').select('*').in('message_id', ids);
@@ -844,6 +853,21 @@ function App() {
       }
     } catch (err) { setToast(err.message || 'Could not save reaction.'); }
     finally { setReactionBusy(prev => ({ ...prev, [messageId]: false })); }
+  }
+
+
+  async function createPoll(event) {
+    event.preventDefault(); const options = pollOptions.map(value => value.trim()).filter(Boolean);
+    if (!pollQuestion.trim() || options.length < 2) { setToast('Add a question and at least two options.'); return; }
+    setPollBusy(true);
+    try { const { data, error } = await supabase.from('room_polls').insert({ created_by: myId, question: pollQuestion.trim().slice(0,240), options }).select('*').single(); if (error) throw error; setPolls(prev => [data, ...prev]); setPollQuestion(''); setPollOptions(['','']); setToast('Poll created.'); }
+    catch (error) { setToast(error.message || 'Could not create poll.'); } finally { setPollBusy(false); }
+  }
+  async function votePoll(poll, optionIndex) {
+    if (!myId) return; const mine = pollVotes.filter(v => v.poll_id === poll.id && v.user_id === myId);
+    try { if (mine.some(v => v.option_index === optionIndex)) { const { error } = await supabase.from('room_poll_votes').delete().eq('poll_id',poll.id).eq('user_id',myId).eq('option_index',optionIndex); if (error) throw error; setPollVotes(prev => prev.filter(v => !(v.poll_id===poll.id && v.user_id===myId && v.option_index===optionIndex))); }
+    else { if (!poll.multiple_choice && mine.length) { const { error } = await supabase.from('room_poll_votes').delete().eq('poll_id',poll.id).eq('user_id',myId); if (error) throw error; } const { data, error } = await supabase.from('room_poll_votes').insert({poll_id:poll.id,user_id:myId,option_index:optionIndex}).select('*').single(); if (error) throw error; setPollVotes(prev => [...prev.filter(v => poll.multiple_choice || !(v.poll_id===poll.id && v.user_id===myId)),data]); } }
+    catch (error) { setToast(error.message || 'Could not save your vote.'); }
   }
 
   async function togglePin(target) {
@@ -1569,6 +1593,7 @@ function App() {
         <div className="chat-head-actions">
           {unreadCount > 0 && <span className="live-pill" title="Unread messages">{unreadCount} UNREAD</span>}
           <button type="button" className="icon-btn" title="Search messages" aria-label="Search messages" aria-expanded={messageSearchOpen} onClick={() => { setMessageSearchOpen(open => !open); setMessageSearchQuery(''); setMessageSearchIndex(0); }}><SearchIcon size={18}/></button>
+          <button type="button" className="icon-btn" title="Polls" aria-label="Polls" onClick={() => setPollsOpen(open => !open)}><Activity size={17}/></button>
           <button type="button" className="icon-btn" title="Pinned messages" aria-label="Pinned messages" onClick={() => setPinsOpen(open => !open)}><Info size={17}/>{pinnedMessages.length > 0 && <span>{pinnedMessages.length}</span>}</button>
           <span className="live-pill"><i/> LIVE NOW</span>
         </div>
@@ -1581,6 +1606,7 @@ function App() {
         <button type="button" className="icon-btn" title="Next result" aria-label="Next result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(1)}><ChevronDown size={16}/></button>
         <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
       </div>}
+      {pollsOpen && <div style={{padding:'12px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><b style={{fontSize:12}}>Room polls</b><button type="button" className="icon-btn" onClick={()=>setPollsOpen(false)} aria-label="Close polls"><X size={15}/></button></div><form onSubmit={createPoll} style={{display:'grid',gap:7,marginBottom:10}}><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} maxLength={240} placeholder="Ask a question…" aria-label="Poll question" style={{width:'100%',padding:9,borderRadius:10,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>{pollOptions.map((option,index)=><input key={index} value={option} onChange={e=>setPollOptions(prev=>prev.map((v,i)=>i===index?e.target.value:v))} maxLength={100} placeholder={'Option '+(index+1)} aria-label={'Poll option '+(index+1)} style={{width:'100%',padding:8,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>)}<div style={{display:'flex',gap:8}}><button type="button" className="icon-btn" onClick={()=>setPollOptions(prev=>prev.length<8?[...prev,'']:prev)} disabled={pollOptions.length>=8}>+ Option</button><button className="icon-btn" disabled={pollBusy}>Create poll</button></div></form>{polls.map(poll=><div key={poll.id} style={{padding:'10px 0',borderTop:'1px solid var(--line,rgba(140,140,160,.14))'}}><b style={{fontSize:13}}>{poll.question}</b>{(poll.options||[]).map((option,index)=>{const votes=pollVotes.filter(v=>v.poll_id===poll.id&&v.option_index===index);const mine=votes.some(v=>v.user_id===myId);return <button key={index} type="button" onClick={()=>votePoll(poll,index)} style={{display:'flex',justifyContent:'space-between',width:'100%',marginTop:6,padding:'8px 10px',borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:mine?'rgba(236,72,153,.12)':'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><span>{option}</span><small>{votes.length} · {mine?'Voted':'Vote'}</small></button>})}</div>)}{!polls.length&&<small>No polls yet. Create the first one.</small>}</div>}
       {pinsOpen && <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><b style={{fontSize:12}}>Pinned messages</b><button type="button" className="icon-btn" onClick={()=>setPinsOpen(false)} aria-label="Close pinned messages"><X size={15}/></button></div>{pinnedMessages.length ? pinnedMessages.map(pin=>{const target=messages.find(row=>String(row.id)===String(pin.message_id));return <button key={pin.id} type="button" onClick={()=>{setPinsOpen(false);document.getElementById('message-'+pin.message_id)?.scrollIntoView({behavior:'smooth',block:'center'});}} style={{display:'block',width:'100%',textAlign:'left',padding:'7px 0',background:'transparent',border:0,color:'inherit',cursor:'pointer',font:'inherit',fontSize:12}}>{target ? (target.message_type==='voice'?'Voice message':target.body) : 'Pinned message (not loaded)'}</button>}) : <small>No pinned messages yet.</small>}</div>}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
