@@ -397,8 +397,6 @@ function App() {
   const [messageExpiry, setMessageExpiry] = useState('never');
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const chatFileRef = useRef(null);
-  useEffect(() => { if (!myId) return; try { const saved = window.localStorage.getItem('shahzaib-room-expiry-' + myId); if (saved && ['never','60000','3600000','86400000','604800000'].includes(saved)) setMessageExpiry(saved); } catch (_) {} }, [myId]);
-  useEffect(() => { if (!myId) return; try { window.localStorage.setItem('shahzaib-room-expiry-' + myId, messageExpiry); } catch (_) {} }, [myId, messageExpiry]);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -441,6 +439,8 @@ function App() {
   const standalone = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
   const me = profile?.nickname || '';
   const myId = session?.user?.id;
+  useEffect(() => { if (!myId) return; try { const saved = window.localStorage.getItem('shahzaib-room-expiry-' + myId); if (saved && ['never','60000','3600000','86400000','604800000'].includes(saved)) setMessageExpiry(saved); } catch (_) {} }, [myId]);
+  useEffect(() => { if (!myId) return; try { window.localStorage.setItem('shahzaib-room-expiry-' + myId, messageExpiry); } catch (_) {} }, [myId, messageExpiry]);
 
   useEffect(() => {
     if (!recording) return;
