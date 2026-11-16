@@ -382,6 +382,9 @@ function App() {
   const [codes, setCodes] = useState([]);
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
+  const oldestMessageAtRef = useRef(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [polls, setPolls] = useState([]);
   const [pollVotes, setPollVotes] = useState([]);
@@ -848,6 +851,8 @@ function App() {
     const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(60);
     if (messagesError) { setToast(messagesError.message); return; }
     const rows = (data || []).slice().reverse();
+    oldestMessageAtRef.current = rows[0]?.created_at || null;
+    setHasOlderMessages((data || []).length === 60);
     const hydratedRows = await Promise.all(rows.map(async row => {
       if (row.message_type === 'voice' && row.audio_path) { const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400); return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null }; }
       if (row.attachment_path) { const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(row.attachment_path, 86400); return { ...row, attachment_url: signed?.signedUrl || null }; }
@@ -874,6 +879,47 @@ function App() {
       setReceipts([]);
     }
     setTimeout(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, 50);
+  }
+
+  async function loadOlderMessages() {
+    if (olderMessagesLoading || !hasOlderMessages || !oldestMessageAtRef.current) return;
+    setOlderMessagesLoading(true);
+    const container = listRef.current;
+    const previousHeight = container?.scrollHeight || 0;
+    const previousTop = container?.scrollTop || 0;
+    try {
+      const { data, error } = await supabase.from('messages').select('*')
+        .lt('created_at', oldestMessageAtRef.current)
+        .order('created_at', { ascending: false }).limit(60);
+      if (error) throw error;
+      const page = (data || []).slice().reverse();
+      if (!page.length) { setHasOlderMessages(false); return; }
+      oldestMessageAtRef.current = page[0].created_at;
+      setHasOlderMessages(data.length === 60);
+      const hydrated = await Promise.all(page.map(async row => {
+        if (row.message_type === 'voice' && row.audio_path) {
+          const { data: signed } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400);
+          return { ...row, audio_url: signed?.signedUrl || null };
+        }
+        if (row.attachment_path) {
+          const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(row.attachment_path, 86400);
+          return { ...row, attachment_url: signed?.signedUrl || null };
+        }
+        return row;
+      }));
+      const ids = page.map(row => row.id);
+      const [reactionResult, receiptResult] = await Promise.all([
+        supabase.from('message_reactions').select('*').in('message_id', ids),
+        supabase.from('message_receipts').select('*').in('message_id', ids)
+      ]);
+      setMessages(prev => [...hydrated, ...prev]);
+      if (!reactionResult.error && reactionResult.data) setReactions(prev => [...prev, ...reactionResult.data]);
+      if (!receiptResult.error && receiptResult.data) setReceipts(prev => [...prev, ...receiptResult.data]);
+      requestAnimationFrame(() => {
+        if (container) container.scrollTop = previousTop + (container.scrollHeight - previousHeight);
+      });
+    } catch (error) { setToast(error.message || 'Could not load older messages.'); }
+    finally { setOlderMessagesLoading(false); }
   }
 
   async function toggleReaction(messageId, reaction) {
@@ -1666,6 +1712,7 @@ function App() {
       {pollsOpen && <div style={{padding:'12px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><b style={{fontSize:12}}>Room polls</b><button type="button" className="icon-btn" onClick={()=>setPollsOpen(false)} aria-label="Close polls"><X size={15}/></button></div><form onSubmit={createPoll} style={{display:'grid',gap:7,marginBottom:10}}><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} maxLength={240} placeholder="Ask a question…" aria-label="Poll question" style={{width:'100%',padding:9,borderRadius:10,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>{pollOptions.map((option,index)=><input key={index} value={option} onChange={e=>setPollOptions(prev=>prev.map((v,i)=>i===index?e.target.value:v))} maxLength={100} placeholder={'Option '+(index+1)} aria-label={'Poll option '+(index+1)} style={{width:'100%',padding:8,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>)}<div style={{display:'flex',gap:8}}><button type="button" className="icon-btn" onClick={()=>setPollOptions(prev=>prev.length<8?[...prev,'']:prev)} disabled={pollOptions.length>=8}>+ Option</button><button className="icon-btn" disabled={pollBusy}>Create poll</button></div></form>{polls.map(poll=><div key={poll.id} style={{padding:'10px 0',borderTop:'1px solid var(--line,rgba(140,140,160,.14))'}}><b style={{fontSize:13}}>{poll.question}</b>{(poll.options||[]).map((option,index)=>{const votes=pollVotes.filter(v=>v.poll_id===poll.id&&v.option_index===index);const mine=votes.some(v=>v.user_id===myId);return <button key={index} type="button" onClick={()=>votePoll(poll,index)} style={{display:'flex',justifyContent:'space-between',width:'100%',marginTop:6,padding:'8px 10px',borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:mine?'rgba(236,72,153,.12)':'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><span>{option}</span><small>{votes.length} · {mine?'Voted':'Vote'}</small></button>})}</div>)}{!polls.length&&<small>No polls yet. Create the first one.</small>}</div>}
 
       <div className="messages" ref={listRef} onScroll={onScroll}>
+        {hasOlderMessages && <div style={{display:'flex',justifyContent:'center',padding:'10px'}}><button type="button" onClick={loadOlderMessages} disabled={olderMessagesLoading} style={{border:'1px solid var(--line,rgba(255,255,255,.2))',borderRadius:999,padding:'8px 14px',background:'var(--surface,rgba(255,255,255,.08))',color:'inherit',fontSize:12}}>{olderMessagesLoading ? 'Loading…' : 'Load older messages'}</button></div>}
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
         (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
