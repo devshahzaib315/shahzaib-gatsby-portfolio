@@ -564,6 +564,9 @@ function App() {
         if (incoming.message_type === 'voice' && incoming.audio_path) {
           const { data: signed } = await supabase.storage.from('voice-messages').createSignedUrl(incoming.audio_path, 86400);
           incoming = { ...incoming, audio_url: signed?.signedUrl || null };
+        } else if (incoming.attachment_path) {
+          const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(incoming.attachment_path, 86400);
+          incoming = { ...incoming, attachment_url: signed?.signedUrl || null };
         }
         setMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
         if (incoming.user_id !== myId) ensureDelivered([incoming]);
@@ -596,6 +599,14 @@ function App() {
         const row = payload.new;
         if (!row?.id) return;
         setReactions(prev => [...prev.filter(item => String(item.id) !== String(row.id)), row]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_polls' }, payload => {
+        if (payload.eventType === 'DELETE') setPolls(prev => prev.filter(p => p.id !== payload.old.id));
+        else setPolls(prev => [...prev.filter(p => p.id !== payload.new.id), payload.new].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_poll_votes' }, payload => {
+        if (payload.eventType === 'DELETE') setPollVotes(prev => prev.filter(v => v.id !== payload.old.id));
+        else setPollVotes(prev => [...prev.filter(v => v.id !== payload.new.id), payload.new]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'member_profiles' }, payload => {
         if (payload.eventType === 'DELETE') {
@@ -851,7 +862,7 @@ function App() {
       if (receiptsError) setToast('Could not load message receipts: ' + receiptsError.message);
       else {
         setReceipts(receiptRows || []);
-        setUnreadCount((receiptRows || []).filter(row => row.user_id === myId && !row.read_at && rows.some(m => String(m.id) === String(row.message_id) && m.user_id !== myId)).length);
+        setUnreadCount(rows.filter(m => m.user_id !== myId && !(receiptRows || []).some(row => String(row.message_id) === String(m.id) && row.user_id === myId && !!row.read_at)).length);
       }
     } else {
       setReactions([]);
