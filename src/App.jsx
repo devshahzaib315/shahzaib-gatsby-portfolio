@@ -716,41 +716,48 @@ function App() {
     }
   }, [latestMessageId, myId]);
 
-  // Stable Android/iOS WebView keyboard handling. Android may resize both innerHeight and
-  // visualViewport, so compare against the original closed-keyboard height rather than comparing
-  // the two live values (which caused kb-open to flicker and the chat to jump).
+  // Cross-WebView keyboard sizing: Android adjustResize may update innerHeight while
+  // visualViewport stays stale; iOS commonly updates visualViewport first. Use the smallest
+  // live viewport measurement and keep the closed-keyboard baseline stable.
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
     const root = document.documentElement;
-    let baselineHeight = Math.max(window.innerHeight, document.documentElement.clientHeight, vv.height);
+    const vv = window.visualViewport;
+    const readHeight = () => {
+      const candidates = [window.innerHeight, root.clientHeight, vv?.height]
+        .filter(value => Number.isFinite(value) && value > 0);
+      return Math.round(Math.min(...candidates));
+    };
+    let baselineHeight = Math.max(window.innerHeight, root.clientHeight, vv?.height || 0);
     let raf = 0;
+    let lastKeyboardOpen = false;
     const apply = () => {
-      cancelAnimationFrame(raf);
+      if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const visibleHeight = Math.round(vv.height);
-        const layoutHeight = Math.round(window.innerHeight);
-        if (visibleHeight > baselineHeight - 90 && layoutHeight > baselineHeight - 90) {
-          baselineHeight = Math.max(visibleHeight, layoutHeight, baselineHeight);
+        const visibleHeight = readHeight();
+        if (!lastKeyboardOpen && visibleHeight > baselineHeight - 100) {
+          baselineHeight = Math.max(baselineHeight, visibleHeight);
         }
-        const keyboardOpen = baselineHeight - Math.min(visibleHeight, layoutHeight) > 135;
+        const keyboardOpen = baselineHeight - visibleHeight > 120;
+        lastKeyboardOpen = keyboardOpen;
         root.style.setProperty('--app-h', visibleHeight + 'px');
-        root.style.setProperty('--app-top', Math.max(0, Math.round(vv.offsetTop)) + 'px');
+        root.style.setProperty('--app-top', Math.max(0, Math.round(vv?.offsetTop || 0)) + 'px');
         root.classList.toggle('kb-open', keyboardOpen);
-        if (vv.offsetTop > 0) window.scrollTo(0, 0);
+        if (vv?.offsetTop > 0) window.scrollTo(0, 0);
         const el = listRef.current;
         if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
       });
     };
     apply();
-    vv.addEventListener('resize', apply, { passive: true });
-    vv.addEventListener('scroll', apply, { passive: true });
+    vv?.addEventListener('resize', apply, { passive: true });
+    vv?.addEventListener('scroll', apply, { passive: true });
     window.addEventListener('resize', apply, { passive: true });
+    window.addEventListener('orientationchange', apply, { passive: true });
     return () => {
-      cancelAnimationFrame(raf);
-      vv.removeEventListener('resize', apply);
-      vv.removeEventListener('scroll', apply);
+      if (raf) cancelAnimationFrame(raf);
+      vv?.removeEventListener('resize', apply);
+      vv?.removeEventListener('scroll', apply);
       window.removeEventListener('resize', apply);
+      window.removeEventListener('orientationchange', apply);
       root.style.removeProperty('--app-h');
       root.style.removeProperty('--app-top');
       root.classList.remove('kb-open');
