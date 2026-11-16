@@ -180,7 +180,7 @@ function observeMessageVisibility(root, node, callback) {
 const MessageRow = memo(function MessageRow({
   m, mine, grouped, newDay, label, dp, pattern, me, myId,
   reactions = [], onReact, reactionBusy, isOnline, onOpenProfile,
-  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible, isPinned, onTogglePin, onTranslate
+  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible, onTranslate
 }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body || ''), [mine, me, m.body]);
   const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
@@ -306,7 +306,6 @@ const MessageRow = memo(function MessageRow({
           </div>
           <div className="message-hold-menu-divider"/>
           <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
-          <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onTogglePin(m); }}><Info size={15}/> {isPinned ? 'Unpin message' : 'Pin message'}</button>
           {m.message_type === 'text' && m.body && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onTranslate(m); }}><Globe2 size={15}/> Translate</button>}
           {mine && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
           {mine && m.message_type === 'text' && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
@@ -383,8 +382,6 @@ function App() {
   const [codes, setCodes] = useState([]);
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
-  const [pinsOpen, setPinsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [polls, setPolls] = useState([]);
   const [pollVotes, setPollVotes] = useState([]);
@@ -609,10 +606,6 @@ function App() {
         const row = payload.new;
         if (!row?.id) return;
         setReactions(prev => [...prev.filter(item => String(item.id) !== String(row.id)), row]);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned_messages' }, payload => {
-        if (payload.eventType === 'DELETE') setPinnedMessages(prev => prev.filter(pin => pin.id !== payload.old.id));
-        else setPinnedMessages(prev => [...prev.filter(pin => pin.id !== payload.new.id), payload.new]);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_polls' }, payload => {
         if (payload.eventType === 'DELETE') setPolls(prev => prev.filter(p => p.id !== payload.old.id));
@@ -924,24 +917,6 @@ function App() {
     if (!target?.body) return;
     const url = 'https://translate.google.com/?sl=auto&tl=en&text=' + encodeURIComponent(target.body) + '&op=translate';
     window.open(url, '_blank', 'noopener,noreferrer');
-  }
-
-  async function togglePin(target) {
-    if (!target?.id || !myId) return;
-    const existing = pinnedMessages.find(row => String(row.message_id) === String(target.id) && row.user_id === myId);
-    try {
-      if (existing) {
-        const { error } = await supabase.from('pinned_messages').delete().eq('id', existing.id).eq('user_id', myId);
-        if (error) throw error;
-        setPinnedMessages(prev => prev.filter(row => row.id !== existing.id));
-        setToast('Message unpinned.');
-      } else {
-        const { data, error } = await supabase.from('pinned_messages').insert({ message_id: target.id, user_id: myId }).select('*').single();
-        if (error) throw error;
-        setPinnedMessages(prev => [...prev, data]);
-        setToast('Message pinned.');
-      }
-    } catch (error) { setToast(error.message || 'Could not update pinned message.'); }
   }
 
   function beginReply(target) {
@@ -1680,8 +1655,6 @@ function App() {
         <div className="chat-head-actions">
           {unreadCount > 0 && <span className="live-pill" title="Unread messages">{unreadCount} UNREAD</span>}
           <button type="button" className="icon-btn" title="Search messages" aria-label="Search messages" aria-expanded={messageSearchOpen} onClick={() => { setMessageSearchOpen(open => !open); setMessageSearchQuery(''); setMessageSearchIndex(0); }}><SearchIcon size={18}/></button>
-          <button type="button" className="icon-btn" title="Polls" aria-label="Polls" onClick={() => setPollsOpen(open => !open)}><Activity size={17}/></button>
-          <button type="button" className="icon-btn" title="Pinned messages" aria-label="Pinned messages" onClick={() => setPinsOpen(open => !open)}><Info size={17}/>{pinnedMessages.length > 0 && <span>{pinnedMessages.length}</span>}</button>
           <span className="live-pill"><i/> LIVE NOW</span>
         </div>
       </div>
@@ -1694,11 +1667,11 @@ function App() {
         <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
       </div>}
       {pollsOpen && <div style={{padding:'12px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><b style={{fontSize:12}}>Room polls</b><button type="button" className="icon-btn" onClick={()=>setPollsOpen(false)} aria-label="Close polls"><X size={15}/></button></div><form onSubmit={createPoll} style={{display:'grid',gap:7,marginBottom:10}}><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} maxLength={240} placeholder="Ask a question…" aria-label="Poll question" style={{width:'100%',padding:9,borderRadius:10,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>{pollOptions.map((option,index)=><input key={index} value={option} onChange={e=>setPollOptions(prev=>prev.map((v,i)=>i===index?e.target.value:v))} maxLength={100} placeholder={'Option '+(index+1)} aria-label={'Poll option '+(index+1)} style={{width:'100%',padding:8,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>)}<div style={{display:'flex',gap:8}}><button type="button" className="icon-btn" onClick={()=>setPollOptions(prev=>prev.length<8?[...prev,'']:prev)} disabled={pollOptions.length>=8}>+ Option</button><button className="icon-btn" disabled={pollBusy}>Create poll</button></div></form>{polls.map(poll=><div key={poll.id} style={{padding:'10px 0',borderTop:'1px solid var(--line,rgba(140,140,160,.14))'}}><b style={{fontSize:13}}>{poll.question}</b>{(poll.options||[]).map((option,index)=>{const votes=pollVotes.filter(v=>v.poll_id===poll.id&&v.option_index===index);const mine=votes.some(v=>v.user_id===myId);return <button key={index} type="button" onClick={()=>votePoll(poll,index)} style={{display:'flex',justifyContent:'space-between',width:'100%',marginTop:6,padding:'8px 10px',borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:mine?'rgba(236,72,153,.12)':'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><span>{option}</span><small>{votes.length} · {mine?'Voted':'Vote'}</small></button>})}</div>)}{!polls.length&&<small>No polls yet. Create the first one.</small>}</div>}
-      {pinsOpen && <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><b style={{fontSize:12}}>Pinned messages</b><button type="button" className="icon-btn" onClick={()=>setPinsOpen(false)} aria-label="Close pinned messages"><X size={15}/></button></div>{pinnedMessages.length ? pinnedMessages.map(pin=>{const target=messages.find(row=>String(row.id)===String(pin.message_id));return <button key={pin.id} type="button" onClick={()=>{setPinsOpen(false);document.getElementById('message-'+pin.message_id)?.scrollIntoView({behavior:'smooth',block:'center'});}} style={{display:'block',width:'100%',textAlign:'left',padding:'7px 0',background:'transparent',border:0,color:'inherit',cursor:'pointer',font:'inherit',fontSize:12}}>{target ? (target.message_type==='voice'?'Voice message':target.body) : 'Pinned message (not loaded)'}</button>}) : <small>No pinned messages yet.</small>}</div>}
+
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
-        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} isPinned={pinnedMessages.some(pin => String(pin.message_id) === String(m.id) && pin.user_id === myId)} onTogglePin={togglePin} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
