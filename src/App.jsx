@@ -1107,6 +1107,8 @@ function App() {
       avatar_url: avatarOverride === undefined ? (draft?.avatar || null) : avatarOverride,
       show_online_status: draft?.showOnlineStatus !== false,
       profile_visibility: draft?.profileVisibility === 'private' ? 'private' : 'members',
+      custom_status: draft?.customStatus || 'online',
+      custom_status_text: String(draft?.customStatusText || '').slice(0,60),
       data_saver: draft?.dataSaver === true,
       autoplay_media: draft?.autoplayMedia !== false,
       hide_sensitive_content: draft?.hideSensitiveContent !== false,
@@ -1120,9 +1122,7 @@ function App() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Profile could not be saved.');
-    const { error: statusError } = await supabase.from('member_profiles').update({ custom_status: draft?.customStatus || 'online', custom_status_text: String(draft?.customStatusText || '').slice(0,60) }).eq('user_id', myId);
-    if (statusError) throw statusError;
-    const mapped = profileFromRow({ ...result.profile, custom_status: draft?.customStatus || 'online', custom_status_text: String(draft?.customStatusText || '').slice(0,60) });
+    const mapped = profileFromRow(result.profile);
     saveProfile(mapped);
     setProfileDraft(mapped);
     setMemberProfiles(prev => ({ ...prev, [myId]: result.profile }));
