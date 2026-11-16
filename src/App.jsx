@@ -569,7 +569,10 @@ function App() {
           incoming = { ...incoming, attachment_url: signed?.signedUrl || null };
         }
         setMessages(prev => prev.some(m => m.id === incoming.id) ? prev : [...prev, incoming]);
-        if (incoming.user_id !== myId) ensureDelivered([incoming]);
+        if (incoming.user_id !== myId) {
+          if (document.visibilityState !== 'visible' || !nearBottom.current) setUnreadCount(count => count + 1);
+          ensureDelivered([incoming]);
+        }
         if (profile?.pushNotifications && payload.new.user_id !== myId && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
           try { new Notification(`${payload.new.nickname || 'New message'} · Shahzaib Room`, { body: payload.new.message_type === 'voice' ? 'Sent a voice message' : String(payload.new.body || '').slice(0, 120), icon: payload.new.avatar_url || '/icon-192.png' }); } catch (_err) {}
         }
@@ -833,6 +836,7 @@ function App() {
     if (readError) { setToast('Could not update read status: ' + readError.message); return; }
     if (data?.length) {
       setReceipts(prev => [...prev.filter(row => !(row.message_id === messageId && row.user_id === myId)), ...data]);
+      setUnreadCount(count => Math.max(0, count - 1));
     }
   }
 
