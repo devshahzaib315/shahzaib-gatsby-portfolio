@@ -87,6 +87,7 @@ const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', mi
 const messageDateTime = iso => iso ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
 const PROFILE_DEFAULTS = {
   nickname: '', username: '', bio: '', avatar: null,
+  customStatus: 'online', customStatusText: '',
   showOnlineStatus: true, profileVisibility: 'members',
   dataSaver: false, autoplayMedia: true,
   hideSensitiveContent: true, pushNotifications: false,
@@ -98,6 +99,8 @@ function profileFromRow(row) {
     username: row.username || '',
     bio: row.bio || '',
     avatar: row.avatar_url || null,
+    customStatus: row.custom_status || 'online',
+    customStatusText: row.custom_status_text || '',
     showOnlineStatus: row.show_online_status !== false,
     profileVisibility: row.profile_visibility || 'members',
     dataSaver: row.data_saver === true,
@@ -1088,7 +1091,9 @@ function App() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Profile could not be saved.');
-    const mapped = profileFromRow(result.profile);
+    const { error: statusError } = await supabase.from('member_profiles').update({ custom_status: draft?.customStatus || 'online', custom_status_text: String(draft?.customStatusText || '').slice(0,60) }).eq('user_id', myId);
+    if (statusError) throw statusError;
+    const mapped = profileFromRow({ ...result.profile, custom_status: draft?.customStatus || 'online', custom_status_text: String(draft?.customStatusText || '').slice(0,60) });
     saveProfile(mapped);
     setProfileDraft(mapped);
     setMemberProfiles(prev => ({ ...prev, [myId]: result.profile }));
@@ -1691,7 +1696,7 @@ function App() {
           {profileDraft?.avatar && <button type="button" className="profile-photo-remove" disabled={dpBusy} onClick={removeDp}><Trash2 size={12}/> Remove photo</button>}
           <h2>{profileDraft?.nickname || me}</h2>
           <p>@{profileDraft?.username || profile?.username || 'username'}</p>
-          <div className="profile-own-status"><i/> Online</div>
+          <div className="profile-own-status"><i/> {(profileDraft?.customStatus || 'online').toUpperCase()}{profileDraft?.customStatusText ? ' · '+profileDraft.customStatusText : ''}</div>
           {profileDraft?.bio && <div className="profile-current-bio">{profileDraft.bio}</div>}
         </div>
         <nav className="profile-tabs" aria-label="Profile settings">
@@ -1706,6 +1711,9 @@ function App() {
             <input value={profileDraft?.nickname || ''} onChange={e => updateProfileDraft('nickname', e.target.value.slice(0,28))} placeholder="Your name" maxLength="28" required/>
             <label>Username</label>
             <div className="profile-username-input"><span>@</span><input value={profileDraft?.username || ''} onChange={e => updateProfileDraft('username', e.target.value.replace(/[^a-zA-Z0-9_]/g,'').slice(0,24))} placeholder="username" minLength="3" maxLength="24" required/></div>
+            <label>Status</label>
+            <select value={profileDraft?.customStatus || 'online'} onChange={e=>updateProfileDraft('customStatus',e.target.value)}><option value="online">Online</option><option value="away">Away</option><option value="busy">Busy</option><option value="do-not-disturb">Do Not Disturb</option></select>
+            <input value={profileDraft?.customStatusText || ''} onChange={e=>updateProfileDraft('customStatusText',e.target.value.slice(0,60))} placeholder="Custom status (optional)" maxLength="60"/>
             <label>Bio</label>
             <textarea value={profileDraft?.bio || ''} onChange={e => updateProfileDraft('bio', e.target.value.slice(0,240))} placeholder="Tell the room a little about yourself…" maxLength="240" rows="3"/>
             <div className="profile-bio-count">{(profileDraft?.bio || '').length}/240</div>
