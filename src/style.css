@@ -2987,3 +2987,16 @@ html[data-theme="dark"] .message-swipe-reply-hint{
   .admin-search{width:112px}
   .admin-view{padding-inline:9px}
 }
+
+/* Low-end mobile and WebView performance: keep the glass look without expensive live filters. */
+@media (max-width: 768px), (pointer: coarse) {
+  .blob { animation: none !important; filter: none !important; mix-blend-mode: normal; opacity: .16; }
+  .glass, .topbar, .composer, .profile-settings-shell, .modal-backdrop > section {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .glass::before { animation: none !important; opacity: 0 !important; }
+  .glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 22px rgba(2,6,23,.2); }
+  .message-row, .orb, .live-pill i { animation: none !important; }
+  .composer-wrap { isolation: isolate; z-index: 20; }
+}
