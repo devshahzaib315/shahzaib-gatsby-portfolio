@@ -399,9 +399,6 @@ function App() {
   const sendHoldTimerRef = useRef(null);
   const sendHoldTriggeredRef = useRef(false);
   const chatFileRef = useRef(null);
-  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
-  const [messageSearchQuery, setMessageSearchQuery] = useState('');
-  const [messageSearchIndex, setMessageSearchIndex] = useState(0);
   const [reactions, setReactions] = useState([]);
   const [reactionBusy, setReactionBusy] = useState({});
   const [receipts, setReceipts] = useState([]);
@@ -848,11 +845,11 @@ function App() {
   }
 
   async function loadChat() {
-    const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(60);
+    const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(30);
     if (messagesError) { setToast(messagesError.message); return; }
     const rows = (data || []).slice().reverse();
     oldestMessageAtRef.current = rows[0]?.created_at || null;
-    setHasOlderMessages((data || []).length === 60);
+    setHasOlderMessages((data || []).length === 30);
     const hydratedRows = await Promise.all(rows.map(async row => {
       if (row.message_type === 'voice' && row.audio_path) { const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400); return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null }; }
       if (row.attachment_path) { const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(row.attachment_path, 86400); return { ...row, attachment_url: signed?.signedUrl || null }; }
@@ -890,12 +887,12 @@ function App() {
     try {
       const { data, error } = await supabase.from('messages').select('*')
         .lt('created_at', oldestMessageAtRef.current)
-        .order('created_at', { ascending: false }).limit(60);
+        .order('created_at', { ascending: false }).limit(30);
       if (error) throw error;
       const page = (data || []).slice().reverse();
       if (!page.length) { setHasOlderMessages(false); return; }
       oldestMessageAtRef.current = page[0].created_at;
-      setHasOlderMessages(data.length === 60);
+      setHasOlderMessages(data.length === 30);
       const hydrated = await Promise.all(page.map(async row => {
         if (row.message_type === 'voice' && row.audio_path) {
           const { data: signed } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400);
@@ -1618,20 +1615,6 @@ function App() {
     });
   }, [messages]);
 
-  const messageSearchResults = useMemo(() => {
-    const query = messageSearchQuery.trim().toLocaleLowerCase();
-    if (!query) return [];
-    return rows.filter(({ m }) => [m.body, m.nickname, m.message_type === 'voice' ? 'voice message audio recording' : ''].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
-  }, [rows, messageSearchQuery]);
-  const activeSearchResult = messageSearchResults[messageSearchIndex] || null;
-  useEffect(() => {
-    if (!messageSearchOpen || !activeSearchResult) return;
-    document.getElementById(`message-${activeSearchResult.m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [messageSearchOpen, activeSearchResult]);
-  function moveMessageSearch(direction) {
-    if (!messageSearchResults.length) return;
-    setMessageSearchIndex(current => (current + direction + messageSearchResults.length) % messageSearchResults.length);
-  }
   const messageInfo = messageInfoId ? messages.find(row => String(row.id) === String(messageInfoId)) : null;
   const messageInfoReceipts = messageInfo ? receipts.filter(row => String(row.message_id) === String(messageInfo.id)) : [];
   const messageInfoDelivered = messageInfoReceipts.slice().sort((a,b) => new Date(a.delivered_at) - new Date(b.delivered_at));
@@ -1697,25 +1680,15 @@ function App() {
         </div>
         <div className="chat-head-actions">
           {unreadCount > 0 && <span className="live-pill" title="Unread messages">{unreadCount} UNREAD</span>}
-          <button type="button" className="icon-btn" title="Search messages" aria-label="Search messages" aria-expanded={messageSearchOpen} onClick={() => { setMessageSearchOpen(open => !open); setMessageSearchQuery(''); setMessageSearchIndex(0); }}><SearchIcon size={18}/></button>
           <span className="live-pill"><i/> LIVE NOW</span>
         </div>
       </div>
-      {messageSearchOpen && <div className="message-search-bar" style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderBottom: "1px solid var(--line, rgba(140,140,160,.18))", background: "var(--surface, rgba(255,255,255,.5))" }}>
-        <SearchIcon size={17}/>
-        <input autoFocus type="search" value={messageSearchQuery} onChange={event => { setMessageSearchQuery(event.target.value); setMessageSearchIndex(0); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); moveMessageSearch(event.shiftKey ? -1 : 1); } if (event.key === 'Escape') { setMessageSearchOpen(false); setMessageSearchQuery(''); } }} placeholder="Search messages or members…" aria-label="Search messages or members" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", color: "var(--text, inherit)", font: "inherit", padding: "7px 2px" }}/>
-        <span className="message-search-count" style={{ whiteSpace: "nowrap", fontSize: 11, color: "var(--muted, #8b91a2)" }}>{messageSearchQuery.trim() ? (messageSearchResults.length ? `${messageSearchIndex + 1}/${messageSearchResults.length}` : '0 results') : 'Search'}</span>
-        <button type="button" className="icon-btn" title="Previous result" aria-label="Previous result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(-1)}><ChevronDown size={16} style={{ transform: 'rotate(180deg)' }}/></button>
-        <button type="button" className="icon-btn" title="Next result" aria-label="Next result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(1)}><ChevronDown size={16}/></button>
-        <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
-      </div>}
       {pollsOpen && <div style={{padding:'12px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><b style={{fontSize:12}}>Room polls</b><button type="button" className="icon-btn" onClick={()=>setPollsOpen(false)} aria-label="Close polls"><X size={15}/></button></div><form onSubmit={createPoll} style={{display:'grid',gap:7,marginBottom:10}}><input value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)} maxLength={240} placeholder="Ask a question…" aria-label="Poll question" style={{width:'100%',padding:9,borderRadius:10,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>{pollOptions.map((option,index)=><input key={index} value={option} onChange={e=>setPollOptions(prev=>prev.map((v,i)=>i===index?e.target.value:v))} maxLength={100} placeholder={'Option '+(index+1)} aria-label={'Poll option '+(index+1)} style={{width:'100%',padding:8,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}/>)}<div style={{display:'flex',gap:8}}><button type="button" className="icon-btn" onClick={()=>setPollOptions(prev=>prev.length<8?[...prev,'']:prev)} disabled={pollOptions.length>=8}>+ Option</button><button className="icon-btn" disabled={pollBusy}>Create poll</button></div></form>{polls.map(poll=><div key={poll.id} style={{padding:'10px 0',borderTop:'1px solid var(--line,rgba(140,140,160,.14))'}}><b style={{fontSize:13}}>{poll.question}</b>{(poll.options||[]).map((option,index)=>{const votes=pollVotes.filter(v=>v.poll_id===poll.id&&v.option_index===index);const mine=votes.some(v=>v.user_id===myId);return <button key={index} type="button" onClick={()=>votePoll(poll,index)} style={{display:'flex',justifyContent:'space-between',width:'100%',marginTop:6,padding:'8px 10px',borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:mine?'rgba(236,72,153,.12)':'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><span>{option}</span><small>{votes.length} · {mine?'Voted':'Vote'}</small></button>})}</div>)}{!polls.length&&<small>No polls yet. Create the first one.</small>}</div>}
 
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {hasOlderMessages && <div style={{display:'flex',justifyContent:'center',padding:'10px'}}><button type="button" onClick={loadOlderMessages} disabled={olderMessagesLoading} style={{border:'1px solid var(--line,rgba(255,255,255,.2))',borderRadius:999,padding:'8px 14px',background:'var(--surface,rgba(255,255,255,.08))',color:'inherit',fontSize:12}}>{olderMessagesLoading ? 'Loading…' : 'Load older messages'}</button></div>}
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
-        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
