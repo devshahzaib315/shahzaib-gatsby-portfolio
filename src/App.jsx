@@ -145,6 +145,35 @@ const VoiceMessagePlayer = memo(function VoiceMessagePlayer({ src, durationMs = 
   </div>;
 });
 
+// Share one IntersectionObserver per chat scroll container instead of creating one
+// observer (and visibility listener) for every message row.
+const messageVisibilityObservers = new WeakMap();
+const messageVisibilityCallbacks = new WeakMap();
+function observeMessageVisibility(root, node, callback) {
+  let observer = messageVisibilityObservers.get(root);
+  if (!observer) {
+    observer = new IntersectionObserver(entries => {
+      if (document.visibilityState !== 'visible') return;
+      entries.forEach(entry => {
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.55) return;
+        const onVisible = messageVisibilityCallbacks.get(entry.target);
+        if (onVisible) {
+          observer.unobserve(entry.target);
+          messageVisibilityCallbacks.delete(entry.target);
+          onVisible();
+        }
+      });
+    }, { root, threshold: [0, 0.55, 1] });
+    messageVisibilityObservers.set(root, observer);
+  }
+  messageVisibilityCallbacks.set(node, callback);
+  observer.observe(node);
+  return () => {
+    observer.unobserve(node);
+    messageVisibilityCallbacks.delete(node);
+  };
+}
+
 const MessageRow = memo(function MessageRow({
   m, mine, grouped, newDay, label, dp, pattern, me, myId,
   reactions = [], onReact, reactionBusy, isOnline, onOpenProfile,
@@ -171,35 +200,9 @@ const MessageRow = memo(function MessageRow({
   useEffect(() => {
     if (mine || typeof IntersectionObserver === 'undefined') return;
     const node = rowRef.current;
-    if (!node) return;
-    const root = node.closest('.messages');
-    const markIfVisible = () => {
-      if (document.visibilityState !== 'visible' || !root) return;
-      const rect = node.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      const visibleTop = Math.max(rect.top, rootRect.top);
-      const visibleBottom = Math.min(rect.bottom, rootRect.bottom);
-      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-      if (rect.height > 0 && visibleHeight / rect.height >= 0.55) {
-        observer.unobserve(node);
-        onVisibleRef.current?.(m.id);
-      }
-    };
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.55 && document.visibilityState === 'visible') {
-          observer.unobserve(node);
-          onVisibleRef.current?.(m.id);
-        }
-      });
-    }, { root, threshold: [0, 0.55, 1] });
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') markIfVisible(); };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
+    const root = node?.closest('.messages');
+    if (!node || !root) return;
+    return observeMessageVisibility(root, node, () => onVisibleRef.current?.(m.id));
   }, [m.id, mine]);
   const summary = useMemo(() => REACTION_OPTIONS.flatMap(reaction => {
     const matches = reactions.filter(row => row.reaction === reaction);
