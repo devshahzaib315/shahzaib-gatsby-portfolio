@@ -180,7 +180,7 @@ function observeMessageVisibility(root, node, callback) {
 const MessageRow = memo(function MessageRow({
   m, mine, grouped, newDay, label, dp, pattern, me, myId,
   reactions = [], onReact, reactionBusy, isOnline, onOpenProfile,
-  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible, isPinned, onTogglePin
+  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible, isPinned, onTogglePin, onTranslate
 }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body || ''), [mine, me, m.body]);
   const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
@@ -307,6 +307,7 @@ const MessageRow = memo(function MessageRow({
           <div className="message-hold-menu-divider"/>
           <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
           <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onTogglePin(m); }}><Info size={15}/> {isPinned ? 'Unpin message' : 'Pin message'}</button>
+          {m.message_type === 'text' && m.body && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onTranslate(m); }}><Globe2 size={15}/> Translate</button>}
           {mine && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
           {mine && m.message_type === 'text' && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
           {mine && <button type="button" role="menuitem" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
@@ -912,6 +913,12 @@ function App() {
     try { if (mine.some(v => v.option_index === optionIndex)) { const { error } = await supabase.from('room_poll_votes').delete().eq('poll_id',poll.id).eq('user_id',myId).eq('option_index',optionIndex); if (error) throw error; setPollVotes(prev => prev.filter(v => !(v.poll_id===poll.id && v.user_id===myId && v.option_index===optionIndex))); }
     else { if (!poll.multiple_choice && mine.length) { const { error } = await supabase.from('room_poll_votes').delete().eq('poll_id',poll.id).eq('user_id',myId); if (error) throw error; } const { data, error } = await supabase.from('room_poll_votes').insert({poll_id:poll.id,user_id:myId,option_index:optionIndex}).select('*').single(); if (error) throw error; setPollVotes(prev => [...prev.filter(v => poll.multiple_choice || !(v.poll_id===poll.id && v.user_id===myId)),data]); } }
     catch (error) { setToast(error.message || 'Could not save your vote.'); }
+  }
+
+  function translateMessage(target) {
+    if (!target?.body) return;
+    const url = 'https://translate.google.com/?sl=auto&tl=en&text=' + encodeURIComponent(target.body) + '&op=translate';
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   async function togglePin(target) {
@@ -1682,7 +1689,7 @@ function App() {
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
-        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} isPinned={pinnedMessages.some(pin => String(pin.message_id) === String(m.id))} onTogglePin={togglePin} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} isPinned={pinnedMessages.some(pin => String(pin.message_id) === String(m.id))} onTogglePin={togglePin} onTranslate={translateMessage} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
