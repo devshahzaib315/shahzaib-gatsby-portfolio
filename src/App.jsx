@@ -845,18 +845,15 @@ function App() {
   }
 
   async function loadChat() {
-    const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at').limit(200);
+    const { data, error: messagesError } = await supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(60);
     if (messagesError) { setToast(messagesError.message); return; }
-    const rows = data || [];
+    const rows = (data || []).slice().reverse();
     const hydratedRows = await Promise.all(rows.map(async row => {
       if (row.message_type === 'voice' && row.audio_path) { const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400); return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null }; }
       if (row.attachment_path) { const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(row.attachment_path, 86400); return { ...row, attachment_url: signed?.signedUrl || null }; }
       return row;
     }));
     setMessages(hydratedRows);
-    const { data: pinRows, error: pinError } = await supabase.from('pinned_messages').select('id,message_id,user_id,created_at');
-    if (pinError) setToast('Could not load pinned messages: ' + pinError.message);
-    else setPinnedMessages(pinRows || []);
     const { data: pollRows, error: pollError } = await supabase.from('room_polls').select('*').order('created_at',{ascending:false}).limit(30);
     if (pollError) setToast('Could not load polls: ' + pollError.message);
     else { setPolls(pollRows || []); if (pollRows?.length) { const { data: voteRows, error: voteError } = await supabase.from('room_poll_votes').select('*').in('poll_id', pollRows.map(p => p.id)); if (voteError) setToast('Could not load poll votes: ' + voteError.message); else setPollVotes(voteRows || []); } else setPollVotes([]); }
@@ -1706,9 +1703,9 @@ function App() {
         <form className="composer glass" onSubmit={sendMessage}>
           <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain" hidden onChange={uploadChatAttachment}/>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
-          <div style={{position:'relative'}}>
-            <button type="button" className="emoji-btn" aria-label="More options" title="More options" onClick={()=>setPlusMenuOpen(open=>!open)} disabled={recording || !!voicePreview}><Plus size={19}/></button>
-            {plusMenuOpen && <div role="menu" aria-label="Chat options" style={{position:'absolute',bottom:'calc(100% + 10px)',left:0,zIndex:50,minWidth:190,padding:7,borderRadius:14,background:'var(--panel, #241522)',border:'1px solid var(--line,rgba(255,255,255,.2))',boxShadow:'0 12px 34px rgba(0,0,0,.28)',display:'grid',gap:4}}>
+          <div style={{position:'relative',zIndex:1000}}>
+            <button type="button" className="emoji-btn" aria-label="More options" title="More options" aria-expanded={plusMenuOpen} onPointerDown={e=>e.preventDefault()} onClick={()=>setPlusMenuOpen(open=>!open)} disabled={recording || !!voicePreview}><Plus size={19}/></button>
+            {plusMenuOpen && <div role="menu" aria-label="Chat options" style={{position:'fixed',bottom:'calc(env(safe-area-inset-bottom, 0px) + 92px)',left:16,zIndex:99999,minWidth:220,maxWidth:'calc(100vw - 32px)',padding:9,borderRadius:16,background:'var(--panel, #241522)',border:'1px solid var(--line,rgba(255,255,255,.2))',boxShadow:'0 14px 38px rgba(0,0,0,.42)',display:'grid',gap:6,pointerEvents:'auto'}}>
               <button type="button" role="menuitem" className="profile-setting-link" onClick={()=>{setPlusMenuOpen(false);setPollsOpen(true);}}><span className="profile-setting-icon"><Activity size={17}/></span><span><b>Polls & Voting</b><small>Create a poll or cast your vote</small></span></button>
               <button type="button" role="menuitem" className="profile-setting-link" onClick={()=>{setPlusMenuOpen(false);chatFileRef.current?.click();}} disabled={attachmentBusy}><span className="profile-setting-icon"><ImageIcon size={17}/></span><span><b>Attach file</b><small>Share an image or document</small></span></button>
             </div>}
