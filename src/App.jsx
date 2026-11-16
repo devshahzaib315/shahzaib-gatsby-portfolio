@@ -392,6 +392,7 @@ function App() {
   const [pollOptions, setPollOptions] = useState(['','']);
   const [pollBusy, setPollBusy] = useState(false);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState('');
   const chatFileRef = useRef(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -645,6 +646,23 @@ function App() {
       supabase.removeChannel(channel);
     };
   }, [view, session, profile?.pushNotifications]);
+
+  useEffect(() => {
+    if (view !== 'chat' || !session || !myId) return;
+    let active = true;
+    const deliverDue = async () => {
+      const { data: due, error } = await supabase.from('scheduled_messages').select('*').eq('user_id',myId).eq('status','pending').lte('scheduled_at',new Date().toISOString()).order('scheduled_at').limit(10);
+      if (!active || error || !due?.length) return;
+      for (const item of due) {
+        const { data: claimed, error: claimError } = await supabase.from('scheduled_messages').update({status:'sent'}).eq('id',item.id).eq('user_id',myId).eq('status','pending').select('id').maybeSingle();
+        if (!active || claimError || !claimed) continue;
+        const { error: sendError } = await supabase.from('messages').insert({user_id:myId,nickname:profile?.nickname || 'Member',body:item.body,avatar_url:profile?.avatar || null,message_type:'text'});
+        if (sendError) { await supabase.from('scheduled_messages').update({status:'failed'}).eq('id',item.id); if (active) setToast('A scheduled message could not be sent: '+sendError.message); }
+      }
+    };
+    deliverDue(); const timer = window.setInterval(deliverDue,15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [view, session, myId, profile?.nickname, profile?.avatar]);
 
   useEffect(() => {
     if (view !== 'chat' || !session || !typingChannelRef.current) return;
@@ -1337,6 +1355,7 @@ function App() {
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     publishTyping(false);
     const body = message.trim().slice(0, 2000);
+    if (scheduleAt) { const when = new Date(scheduleAt); if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now()) { setToast('Choose a future time for this message.'); return; } try { const { error } = await supabase.from('scheduled_messages').insert({ user_id: myId, body, scheduled_at: when.toISOString() }); if (error) throw error; setMessage(''); setScheduleAt(''); setToast('Message scheduled. Keep Shahzaib Room open for automatic delivery.'); } catch (error) { setToast(error.message || 'Could not schedule message.'); } return; }
     const replyTarget = replyingTo;
     const editTarget = editingMessage;
     setPickerOpen(false);
@@ -1672,11 +1691,13 @@ function App() {
           <button type="button" className="voice-discard-button" onClick={discardVoicePreview} disabled={voiceSending} aria-label="Discard voice message"><X size={18}/></button>
           <button type="button" className="voice-send-button" onClick={sendVoiceMessage} disabled={voiceSending} aria-label="Send voice message">{voiceSending ? 'Sending…' : <><Send size={17}/> Send</>}</button>
         </div>}
+        {scheduleAt && <div style={{display:'flex',gap:8,alignItems:'center',padding:'7px 12px',fontSize:11}}><Clock3 size={15}/> Schedule for <input type="datetime-local" value={scheduleAt} min={new Date(Date.now()+60000).toISOString().slice(0,16)} onChange={e=>setScheduleAt(e.target.value)} style={{minWidth:0,flex:1}}/><button type="button" className="icon-btn" onClick={()=>setScheduleAt('')} aria-label="Cancel schedule"><X size={14}/></button></div>}
         <form className="composer glass" onSubmit={sendMessage}>
           <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain" hidden onChange={uploadChatAttachment}/>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
           <button type="button" className="emoji-btn" aria-label="Attach file" title="Attach file" onClick={()=>chatFileRef.current?.click()} disabled={attachmentBusy || recording || !!voicePreview}><Plus size={19}/></button>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
+          <button type="button" className="icon-btn" title="Schedule message" aria-label="Schedule message" onClick={()=>setScheduleAt(value=>value || new Date(Date.now()+3600000).toISOString().slice(0,16))} disabled={recording || !!voicePreview}><Clock3 size={18}/></button>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
           <button className="send" disabled={!message.trim() || recording || !!voicePreview || messageActionBusy} aria-label={editingMessage ? 'Save edit' : 'Send message'} onMouseDown={e => e.preventDefault()}>{editingMessage ? <Check size={18}/> : <Send size={18}/>}</button>
         </form>
