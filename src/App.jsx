@@ -1408,6 +1408,25 @@ function App() {
   }
 
   // Names we can mention = people who have spoken in the room (the members list itself stays private).
+  const reactionsByMessage = useMemo(() => {
+    const grouped = new Map();
+    for (const row of reactions) {
+      const key = String(row.message_id);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(row);
+    }
+    return grouped;
+  }, [reactions]);
+  const receiptsByMessage = useMemo(() => {
+    const grouped = new Map();
+    for (const row of receipts) {
+      const key = String(row.message_id);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(row);
+    }
+    return grouped;
+  }, [receipts]);
+
   const names = useMemo(() => [...new Set(messages.map(m => m.nickname).filter(Boolean))], [messages]);
   const mentionPattern = useMemo(() => {
     const all = [...new Set([...names, me].filter(Boolean))].sort((a, b) => b.length - a.length);
@@ -1501,7 +1520,7 @@ function App() {
       </div>
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactions.filter(row => String(row.message_id) === String(m.id))} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={receipts.filter(row => String(row.message_id) === String(m.id) && row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
