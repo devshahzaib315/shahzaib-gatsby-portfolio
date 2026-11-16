@@ -603,6 +603,10 @@ function App() {
         if (!row?.id) return;
         setReactions(prev => [...prev.filter(item => String(item.id) !== String(row.id)), row]);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned_messages' }, payload => {
+        if (payload.eventType === 'DELETE') setPinnedMessages(prev => prev.filter(pin => pin.id !== payload.old.id));
+        else setPinnedMessages(prev => [...prev.filter(pin => pin.id !== payload.new.id), payload.new]);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_polls' }, payload => {
         if (payload.eventType === 'DELETE') setPolls(prev => prev.filter(p => p.id !== payload.old.id));
         else setPolls(prev => [...prev.filter(p => p.id !== payload.new.id), payload.new].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
