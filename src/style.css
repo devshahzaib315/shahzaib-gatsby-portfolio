@@ -3015,3 +3015,54 @@ html[data-theme="dark"] .message-swipe-reply-hint{
     overscroll-behavior: contain;
   }
 }
+
+/* Final mobile WebView keyboard layout stabilization. */
+.app-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+}
+.chat-wrap {
+  flex: 1 1 0%;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+}
+.chat-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+.messages {
+  flex: 1 1 0%;
+  min-height: 0;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.composer-wrap {
+  flex: 0 0 auto;
+}
+@media (max-width: 640px) {
+  html.kb-open .app-shell {
+    padding-top: 0 !important;
+  }
+  html.kb-open .chat-wrap {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  html.kb-open .chat-card {
+    height: 100%;
+    max-height: 100%;
+    border-radius: 20px;
+  }
+  html.kb-open .messages {
+    min-height: 0;
+    flex: 1 1 0%;
+  }
+  html.kb-open .composer-wrap {
+    flex: 0 0 auto;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}
