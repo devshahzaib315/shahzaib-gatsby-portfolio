@@ -406,6 +406,7 @@ function App() {
   const listRef = useRef(null);
   const bottom = useRef(null);
   const nearBottom = useRef(true);
+  const scrollFrameRef = useRef(0);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -422,7 +423,7 @@ function App() {
         setToast('Maximum voice message length is 5 minutes.');
         stopVoiceRecording();
       }
-    }, 250);
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [recording]);
 
@@ -649,10 +650,13 @@ function App() {
     return () => { stop = true; clearTimeout(first); clearInterval(t); };
   }, [view, session]);
 
+  const latestMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
     const last = messages[messages.length - 1];
-    if (nearBottom.current || last?.user_id === myId) listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+    if (nearBottom.current || last?.user_id === myId) {
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [latestMessageId, myId]);
 
   // Phone keyboard fix: size the whole app to the VISIBLE area (above the keyboard) so the header and
   // the message box never slide off-screen or get cut when the keyboard opens.
@@ -684,10 +688,19 @@ function App() {
   }, [adminOpen, adminUnlocked, adminPass]);
 
   function onScroll() {
-    const el = listRef.current; if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
-    nearBottom.current = near; setAtBottom(near);
+    if (scrollFrameRef.current) return;
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = 0;
+      const el = listRef.current; if (!el) return;
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+      nearBottom.current = near;
+      setAtBottom(previous => previous === near ? previous : near);
+    });
   }
+
+  useEffect(() => () => {
+    if (scrollFrameRef.current) window.cancelAnimationFrame(scrollFrameRef.current);
+  }, []);
   function isExpiredAuthError(error) {
     const details = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''} ${error?.code || ''}`;
     return error?.status === 401 || /jwt expired|invalid jwt|pgrst301|token expired|refresh_token_not_found|invalid refresh token/i.test(details);
