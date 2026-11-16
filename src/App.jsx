@@ -716,24 +716,44 @@ function App() {
     }
   }, [latestMessageId, myId]);
 
-  // Phone keyboard fix: size the whole app to the VISIBLE area (above the keyboard) so the header and
-  // the message box never slide off-screen or get cut when the keyboard opens.
+  // Stable Android/iOS WebView keyboard handling. Android may resize both innerHeight and
+  // visualViewport, so compare against the original closed-keyboard height rather than comparing
+  // the two live values (which caused kb-open to flicker and the chat to jump).
   useEffect(() => {
-    const vv = window.visualViewport; if (!vv) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
     const root = document.documentElement;
+    let baselineHeight = Math.max(window.innerHeight, document.documentElement.clientHeight, vv.height);
+    let raf = 0;
     const apply = () => {
-      root.style.setProperty('--app-h', `${Math.round(vv.height)}px`);
-      root.style.setProperty('--app-top', `${Math.round(vv.offsetTop)}px`);
-      root.classList.toggle('kb-open', window.innerHeight - vv.height > 120);
-      if (vv.offsetTop > 0) window.scrollTo(0, 0);
-      const el = listRef.current;
-      if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const visibleHeight = Math.round(vv.height);
+        const layoutHeight = Math.round(window.innerHeight);
+        if (visibleHeight > baselineHeight - 90 && layoutHeight > baselineHeight - 90) {
+          baselineHeight = Math.max(visibleHeight, layoutHeight, baselineHeight);
+        }
+        const keyboardOpen = baselineHeight - Math.min(visibleHeight, layoutHeight) > 135;
+        root.style.setProperty('--app-h', visibleHeight + 'px');
+        root.style.setProperty('--app-top', Math.max(0, Math.round(vv.offsetTop)) + 'px');
+        root.classList.toggle('kb-open', keyboardOpen);
+        if (vv.offsetTop > 0) window.scrollTo(0, 0);
+        const el = listRef.current;
+        if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
+      });
     };
     apply();
-    vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply);
+    vv.addEventListener('resize', apply, { passive: true });
+    vv.addEventListener('scroll', apply, { passive: true });
+    window.addEventListener('resize', apply, { passive: true });
     return () => {
-      vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply);
-      root.style.removeProperty('--app-h'); root.style.removeProperty('--app-top'); root.classList.remove('kb-open');
+      cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      window.removeEventListener('resize', apply);
+      root.style.removeProperty('--app-h');
+      root.style.removeProperty('--app-top');
+      root.classList.remove('kb-open');
     };
   }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4200); return () => clearTimeout(t); }, [toast]);
