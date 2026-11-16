@@ -377,6 +377,9 @@ function App() {
   const [codes, setCodes] = useState([]);
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [messageSearchIndex, setMessageSearchIndex] = useState(0);
   const [reactions, setReactions] = useState([]);
   const [reactionBusy, setReactionBusy] = useState({});
   const [receipts, setReceipts] = useState([]);
@@ -1456,6 +1459,21 @@ function App() {
       return { m, newDay, grouped, label: newDay ? dayLabel(d) : null };
     });
   }, [messages]);
+
+  const messageSearchResults = useMemo(() => {
+    const query = messageSearchQuery.trim().toLocaleLowerCase();
+    if (!query) return [];
+    return rows.filter(({ m }) => [m.body, m.nickname, m.message_type === 'voice' ? 'voice message audio recording' : ''].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
+  }, [rows, messageSearchQuery]);
+  const activeSearchResult = messageSearchResults[messageSearchIndex] || null;
+  useEffect(() => {
+    if (!messageSearchOpen || !activeSearchResult) return;
+    document.getElementById(`message-${activeSearchResult.m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [messageSearchOpen, activeSearchResult]);
+  function moveMessageSearch(direction) {
+    if (!messageSearchResults.length) return;
+    setMessageSearchIndex(current => (current + direction + messageSearchResults.length) % messageSearchResults.length);
+  }
   const messageInfo = messageInfoId ? messages.find(row => String(row.id) === String(messageInfoId)) : null;
   const messageInfoReceipts = messageInfo ? receipts.filter(row => String(row.message_id) === String(messageInfo.id)) : [];
   const messageInfoDelivered = messageInfoReceipts.slice().sort((a,b) => new Date(a.delivered_at) - new Date(b.delivered_at));
@@ -1519,11 +1537,23 @@ function App() {
             <small><i className="room-online-dot"/> {onlineMembers.length} members online <span className="room-heading-divider"/> Live conversation</small>
           </div>
         </div>
-        <span className="live-pill"><i/> LIVE NOW</span>
+        <div className="chat-head-actions">
+          <button type="button" className="icon-btn" title="Search messages" aria-label="Search messages" aria-expanded={messageSearchOpen} onClick={() => { setMessageSearchOpen(open => !open); setMessageSearchQuery(''); setMessageSearchIndex(0); }}><SearchIcon size={18}/></button>
+          <span className="live-pill"><i/> LIVE NOW</span>
+        </div>
       </div>
+      {messageSearchOpen && <div className="message-search-bar">
+        <SearchIcon size={17}/>
+        <input autoFocus type="search" value={messageSearchQuery} onChange={event => { setMessageSearchQuery(event.target.value); setMessageSearchIndex(0); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); moveMessageSearch(event.shiftKey ? -1 : 1); } if (event.key === 'Escape') { setMessageSearchOpen(false); setMessageSearchQuery(''); } }} placeholder="Search messages or members…" aria-label="Search messages or members"/>
+        <span className="message-search-count">{messageSearchQuery.trim() ? (messageSearchResults.length ? `${messageSearchIndex + 1}/${messageSearchResults.length}` : '0 results') : 'Search'}</span>
+        <button type="button" className="icon-btn" title="Previous result" aria-label="Previous result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(-1)}><ChevronDown size={16} style={{ transform: 'rotate(180deg)' }}/></button>
+        <button type="button" className="icon-btn" title="Next result" aria-label="Next result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(1)}><ChevronDown size={16}/></button>
+        <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
+      </div>}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
-        rows.map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
+        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
