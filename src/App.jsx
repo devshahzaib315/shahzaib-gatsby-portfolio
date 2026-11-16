@@ -716,44 +716,52 @@ function App() {
     }
   }, [latestMessageId, myId]);
 
-  // Cross-WebView keyboard sizing: Android adjustResize may update innerHeight while
-  // visualViewport stays stale; iOS commonly updates visualViewport first. Use the smallest
-  // live viewport measurement and keep the closed-keyboard baseline stable.
+  // Android WebView may pan instead of resize the layout viewport. Track focus + both
+  // viewport APIs, and size the app to the visual viewport so the composer stays above IME.
   useEffect(() => {
     const root = document.documentElement;
     const vv = window.visualViewport;
-    const readHeight = () => {
-      const candidates = [window.innerHeight, root.clientHeight, vv?.height]
-        .filter(value => Number.isFinite(value) && value > 0);
-      return Math.round(Math.min(...candidates));
-    };
-    let baselineHeight = Math.max(window.innerHeight, root.clientHeight, vv?.height || 0);
     let raf = 0;
-    let lastKeyboardOpen = false;
+    let closedHeight = Math.max(window.innerHeight, root.clientHeight, vv?.height || 0);
+    let focusedEditable = false;
+    const isEditable = node => !!(node && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.isContentEditable));
     const apply = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const visibleHeight = readHeight();
-        if (!lastKeyboardOpen && visibleHeight > baselineHeight - 100) {
-          baselineHeight = Math.max(baselineHeight, visibleHeight);
+        const layoutHeight = Math.round(window.innerHeight || root.clientHeight);
+        const visualHeight = Math.round(vv?.height || layoutHeight);
+        const visibleHeight = Math.min(layoutHeight, visualHeight);
+        const keyboardOpen = focusedEditable && (closedHeight - visibleHeight > 90 || (vv && closedHeight - visualHeight > 90));
+        if (!keyboardOpen && visibleHeight > closedHeight - 90) {
+          closedHeight = Math.max(closedHeight, visibleHeight, layoutHeight);
         }
-        const keyboardOpen = baselineHeight - visibleHeight > 120;
-        lastKeyboardOpen = keyboardOpen;
-        root.style.setProperty('--app-h', visibleHeight + 'px');
+        const height = keyboardOpen ? visibleHeight : layoutHeight;
+        root.style.setProperty('--app-h', height + 'px');
         root.style.setProperty('--app-top', Math.max(0, Math.round(vv?.offsetTop || 0)) + 'px');
         root.classList.toggle('kb-open', keyboardOpen);
-        if (vv?.offsetTop > 0) window.scrollTo(0, 0);
-        const el = listRef.current;
-        if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
+        if (keyboardOpen && vv?.offsetTop > 0) window.scrollTo(0, 0);
+        const list = listRef.current;
+        if (keyboardOpen && list && nearBottom.current) list.scrollTop = list.scrollHeight;
       });
     };
-    apply();
+    const onFocusIn = event => { if (isEditable(event.target)) { focusedEditable = true; apply(); } };
+    const onFocusOut = () => {
+      window.setTimeout(() => {
+        focusedEditable = isEditable(document.activeElement);
+        apply();
+      }, 80);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
     vv?.addEventListener('resize', apply, { passive: true });
     vv?.addEventListener('scroll', apply, { passive: true });
     window.addEventListener('resize', apply, { passive: true });
     window.addEventListener('orientationchange', apply, { passive: true });
+    apply();
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
       vv?.removeEventListener('resize', apply);
       vv?.removeEventListener('scroll', apply);
       window.removeEventListener('resize', apply);
