@@ -395,7 +395,10 @@ function App() {
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
   const [messageExpiry, setMessageExpiry] = useState('never');
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const chatFileRef = useRef(null);
+  useEffect(() => { if (!myId) return; try { const saved = window.localStorage.getItem('shahzaib-room-expiry-' + myId); if (saved && ['never','60000','3600000','86400000','604800000'].includes(saved)) setMessageExpiry(saved); } catch (_) {} }, [myId]);
+  useEffect(() => { if (!myId) return; try { window.localStorage.setItem('shahzaib-room-expiry-' + myId, messageExpiry); } catch (_) {} }, [myId, messageExpiry]);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -1728,8 +1731,13 @@ function App() {
         <form className="composer glass" onSubmit={sendMessage}>
           <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain" hidden onChange={uploadChatAttachment}/>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
-          <button type="button" className="emoji-btn" aria-label="Attach file" title="Attach file" onClick={()=>chatFileRef.current?.click()} disabled={attachmentBusy || recording || !!voicePreview}><Plus size={19}/></button>
-          <select value={messageExpiry} onChange={e=>setMessageExpiry(e.target.value)} aria-label="Message expiry" title="Disappearing message timer" style={{maxWidth:94,padding:'6px 4px',fontSize:10,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:'transparent',color:'inherit'}}><option value="never">Keep</option><option value="60000">1 min</option><option value="3600000">1 hour</option><option value="86400000">1 day</option><option value="604800000">1 week</option></select>
+          <div style={{position:'relative'}}>
+            <button type="button" className="emoji-btn" aria-label="More options" title="More options" onClick={()=>setPlusMenuOpen(open=>!open)} disabled={recording || !!voicePreview}><Plus size={19}/></button>
+            {plusMenuOpen && <div role="menu" aria-label="Chat options" style={{position:'absolute',bottom:'calc(100% + 10px)',left:0,zIndex:50,minWidth:190,padding:7,borderRadius:14,background:'var(--panel, #241522)',border:'1px solid var(--line,rgba(255,255,255,.2))',boxShadow:'0 12px 34px rgba(0,0,0,.28)',display:'grid',gap:4}}>
+              <button type="button" role="menuitem" className="profile-setting-link" onClick={()=>{setPlusMenuOpen(false);setPollsOpen(true);}}><span className="profile-setting-icon"><Activity size={17}/></span><span><b>Polls & Voting</b><small>Create a poll or cast your vote</small></span></button>
+              <button type="button" role="menuitem" className="profile-setting-link" onClick={()=>{setPlusMenuOpen(false);chatFileRef.current?.click();}} disabled={attachmentBusy}><span className="profile-setting-icon"><ImageIcon size={17}/></span><span><b>Attach file</b><small>Share an image or document</small></span></button>
+            </div>}
+          </div>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
           <button type="button" className="icon-btn" title="Schedule message" aria-label="Schedule message" onClick={()=>setScheduleAt(value=>value || new Date(Date.now()+3600000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16))} disabled={recording || !!voicePreview}><Clock3 size={18}/></button>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
@@ -1804,6 +1812,8 @@ function App() {
               </div>
               <div className="profile-theme-current"><span className={profileDraft?.themeMode === 'dark' ? 'theme-dot dark' : 'theme-dot'}/>{profileDraft?.themeMode === 'dark' ? 'Dark pink glass' : 'Soft pink light'}</div>
             </div>
+            <div className="profile-settings-label">MESSAGES & PRIVACY</div>
+            <div className="profile-setting-row" style={{alignItems:'center'}}><span><b>Disappearing messages</b><small>Automatically delete new text messages after the selected time</small></span><select value={messageExpiry} onChange={e=>setMessageExpiry(e.target.value)} aria-label="Default disappearing message timer" style={{maxWidth:112,padding:'8px 6px',borderRadius:10,border:'1px solid var(--line,rgba(140,140,160,.25))',background:'transparent',color:'inherit'}}><option value="never">Keep</option><option value="60000">1 min</option><option value="3600000">1 hour</option><option value="86400000">1 day</option><option value="604800000">1 week</option></select></div>
             <div className="profile-settings-label">MEDIA</div>
             <div className="profile-setting-row"><span><b>Autoplay media</b><small>Play supported media automatically</small></span><button type="button" className={`profile-switch ${profileDraft?.autoplayMedia ? 'on' : ''}`} role="switch" aria-checked={!!profileDraft?.autoplayMedia} disabled={profileSaving} onClick={() => changeProfileSetting('autoplayMedia', !profileDraft?.autoplayMedia)}><i/></button></div>
             <div className="profile-settings-label">FEED & PRIVACY</div>
