@@ -974,6 +974,10 @@ function App() {
         const { error: storageError } = await supabase.storage.from('voice-messages').remove([target.audio_path]);
         if (storageError) setToast('Message deleted. Audio cleanup will be retried later.');
         else setToast('Message deleted for everyone.');
+      } else if (target.attachment_path) {
+        const { error: storageError } = await supabase.storage.from('chat-attachments').remove([target.attachment_path]);
+        if (storageError) setToast('Message deleted. Attachment cleanup will be retried later.');
+        else setToast('Message deleted for everyone.');
       } else setToast('Message deleted for everyone.');
       if (String(editingMessage?.id) === String(target.id)) cancelMessageContext();
     } catch (err) { setToast(err.message || 'Could not delete this message.'); }
