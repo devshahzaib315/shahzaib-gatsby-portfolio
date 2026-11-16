@@ -3000,3 +3000,18 @@ html[data-theme="dark"] .message-swipe-reply-hint{
   .message-row, .orb, .live-pill i { animation: none !important; }
   .composer-wrap { isolation: isolate; z-index: 20; }
 }
+
+/* Keep off-screen chat bubbles out of the mobile WebView paint pipeline. */
+@media (max-width: 768px), (pointer: coarse) {
+  .message-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 132px;
+  }
+  .message-row img, .message-row video {
+    content-visibility: auto;
+  }
+  .chat-messages {
+    overflow-anchor: auto;
+    overscroll-behavior: contain;
+  }
+}
