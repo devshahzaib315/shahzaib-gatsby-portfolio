@@ -1542,10 +1542,10 @@ function App() {
           <span className="live-pill"><i/> LIVE NOW</span>
         </div>
       </div>
-      {messageSearchOpen && <div className="message-search-bar">
+      {messageSearchOpen && <div className="message-search-bar" style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderBottom: "1px solid var(--line, rgba(140,140,160,.18))", background: "var(--surface, rgba(255,255,255,.5))" }}>
         <SearchIcon size={17}/>
-        <input autoFocus type="search" value={messageSearchQuery} onChange={event => { setMessageSearchQuery(event.target.value); setMessageSearchIndex(0); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); moveMessageSearch(event.shiftKey ? -1 : 1); } if (event.key === 'Escape') { setMessageSearchOpen(false); setMessageSearchQuery(''); } }} placeholder="Search messages or members…" aria-label="Search messages or members"/>
-        <span className="message-search-count">{messageSearchQuery.trim() ? (messageSearchResults.length ? `${messageSearchIndex + 1}/${messageSearchResults.length}` : '0 results') : 'Search'}</span>
+        <input autoFocus type="search" value={messageSearchQuery} onChange={event => { setMessageSearchQuery(event.target.value); setMessageSearchIndex(0); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); moveMessageSearch(event.shiftKey ? -1 : 1); } if (event.key === 'Escape') { setMessageSearchOpen(false); setMessageSearchQuery(''); } }} placeholder="Search messages or members…" aria-label="Search messages or members" style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", color: "var(--text, inherit)", font: "inherit", padding: "7px 2px" }}/>
+        <span className="message-search-count" style={{ whiteSpace: "nowrap", fontSize: 11, color: "var(--muted, #8b91a2)" }}>{messageSearchQuery.trim() ? (messageSearchResults.length ? `${messageSearchIndex + 1}/${messageSearchResults.length}` : '0 results') : 'Search'}</span>
         <button type="button" className="icon-btn" title="Previous result" aria-label="Previous result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(-1)}><ChevronDown size={16} style={{ transform: 'rotate(180deg)' }}/></button>
         <button type="button" className="icon-btn" title="Next result" aria-label="Next result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(1)}><ChevronDown size={16}/></button>
         <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
