@@ -396,6 +396,8 @@ function App() {
   const [scheduleAt, setScheduleAt] = useState('');
   const [messageExpiry, setMessageExpiry] = useState('never');
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const sendHoldTimerRef = useRef(null);
+  const sendHoldTriggeredRef = useRef(false);
   const chatFileRef = useRef(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -1739,9 +1741,8 @@ function App() {
             </div>}
           </div>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
-          <button type="button" className="icon-btn" title="Schedule message" aria-label="Schedule message" onClick={()=>setScheduleAt(value=>value || new Date(Date.now()+3600000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16))} disabled={recording || !!voicePreview}><Clock3 size={18}/></button>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
-          <button className="send" disabled={!message.trim() || recording || !!voicePreview || messageActionBusy} aria-label={editingMessage ? 'Save edit' : 'Send message'} onMouseDown={e => e.preventDefault()}>{editingMessage ? <Check size={18}/> : <Send size={18}/>}</button>
+          <button className="send" disabled={!message.trim() || recording || !!voicePreview || messageActionBusy} aria-label={editingMessage ? 'Save edit' : 'Send message'} title="Hold to schedule" style={{touchAction:'manipulation'}} onPointerDown={()=>{if(editingMessage || !message.trim()) return; sendHoldTriggeredRef.current=false; sendHoldTimerRef.current=window.setTimeout(()=>{sendHoldTriggeredRef.current=true;setScheduleAt(value=>value || new Date(Date.now()+3600000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16));setToast('Choose a delivery time, then tap Send to schedule.');},550);}} onPointerUp={()=>{if(sendHoldTimerRef.current){clearTimeout(sendHoldTimerRef.current);sendHoldTimerRef.current=null;}}} onPointerLeave={()=>{if(sendHoldTimerRef.current){clearTimeout(sendHoldTimerRef.current);sendHoldTimerRef.current=null;}}} onPointerCancel={()=>{if(sendHoldTimerRef.current){clearTimeout(sendHoldTimerRef.current);sendHoldTimerRef.current=null;}}} onContextMenu={e=>{e.preventDefault();if(!editingMessage){sendHoldTriggeredRef.current=true;setScheduleAt(value=>value || new Date(Date.now()+3600000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16));setToast('Choose a delivery time, then tap Send to schedule.');}}} onClick={e=>{if(sendHoldTriggeredRef.current){e.preventDefault();e.stopPropagation();sendHoldTriggeredRef.current=false;}}} onMouseDown={e=>e.preventDefault()}>{editingMessage ? <Check size={18}/> : <Send size={18}/>}</button>
         </form>
       </div>
     </section></main>}
