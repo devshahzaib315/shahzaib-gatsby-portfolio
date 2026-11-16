@@ -3066,3 +3066,61 @@ html[data-theme="dark"] .message-swipe-reply-hint{
     padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
 }
+
+/* WebView keyboard: size the complete flex column to the actually visible viewport. */
+.app-shell {
+  height: var(--app-h, 100dvh) !important;
+  max-height: var(--app-h, 100dvh);
+  min-height: 0 !important;
+}
+.app-shell > main {
+  min-height: 0;
+}
+.chat-wrap {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-card {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+}
+.messages {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.composer-wrap {
+  flex: 0 0 auto;
+}
+@media (max-width: 640px) {
+  html.kb-open .app-shell {
+    height: var(--app-h) !important;
+    max-height: var(--app-h);
+    padding-top: 0 !important;
+  }
+  html.kb-open .chat-wrap {
+    padding: 4px 7px !important;
+  }
+  html.kb-open .chat-card {
+    height: 100%;
+    max-height: 100%;
+    border-radius: 18px;
+  }
+  html.kb-open .messages {
+    flex: 1 1 0%;
+    min-height: 0;
+    padding-top: 8px;
+    padding-bottom: 4px;
+  }
+  html.kb-open .composer-wrap {
+    flex: 0 0 auto;
+    padding: 5px 7px 5px !important;
+  }
+  html.kb-open .composer {
+    flex: 0 0 54px;
+    min-height: 54px;
+  }
+}
