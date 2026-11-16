@@ -393,6 +393,7 @@ function App() {
   const [pollBusy, setPollBusy] = useState(false);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
+  const [messageExpiry, setMessageExpiry] = useState('never');
   const chatFileRef = useRef(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -1399,7 +1400,9 @@ function App() {
       } : {};
       const { error: sendError } = await withFreshAuth(activeSession => supabase.from('messages').insert({
         user_id: activeSession.user.id, nickname: profile.nickname, body,
-        avatar_url: profile.avatar || null, message_type: 'text', ...replyFields
+        avatar_url: profile.avatar || null, message_type: 'text',
+        expires_at: messageExpiry === 'never' ? null : new Date(Date.now() + Number(messageExpiry)).toISOString(),
+        ...replyFields
       }));
       if (sendError) throw sendError;
       setMessage('');
@@ -1715,6 +1718,7 @@ function App() {
           <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain" hidden onChange={uploadChatAttachment}/>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
           <button type="button" className="emoji-btn" aria-label="Attach file" title="Attach file" onClick={()=>chatFileRef.current?.click()} disabled={attachmentBusy || recording || !!voicePreview}><Plus size={19}/></button>
+          <select value={messageExpiry} onChange={e=>setMessageExpiry(e.target.value)} aria-label="Message expiry" title="Disappearing message timer" style={{maxWidth:94,padding:'6px 4px',fontSize:10,borderRadius:9,border:'1px solid var(--line,rgba(140,140,160,.2))',background:'transparent',color:'inherit'}}><option value="never">Keep</option><option value="60000">1 min</option><option value="3600000">1 hour</option><option value="86400000">1 day</option><option value="604800000">1 week</option></select>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
           <button type="button" className="icon-btn" title="Schedule message" aria-label="Schedule message" onClick={()=>setScheduleAt(value=>value || new Date(Date.now()+3600000).toISOString().slice(0,16))} disabled={recording || !!voicePreview}><Clock3 size={18}/></button>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
