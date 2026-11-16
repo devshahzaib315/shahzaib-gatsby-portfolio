@@ -285,6 +285,7 @@ const MessageRow = memo(function MessageRow({
         >
           {swipeOffset > 8 && <span className="message-swipe-reply-hint" style={{ opacity: Math.min(1, swipeOffset / 58) }}><ReplyIcon size={17}/></span>}
           {m.message_type === 'voice' ? <div className="voice-bubble"><VoiceMessagePlayer src={m.audio_url} durationMs={m.audio_duration_ms}/></div> : <div className={"bubble " + (big ? "big-emoji" : "")}><RichText body={m.body || ''} pattern={pattern} me={me}/></div>}
+          {m.attachment_url && <a href={m.attachment_url} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:8,marginTop:7,padding:'8px 10px',borderRadius:10,background:'rgba(236,72,153,.1)',color:'inherit',fontSize:12,textDecoration:'none'}}><Download size={15}/>{m.attachment_name || 'Open attachment'}</a>}
           {mine && <button
             type="button"
             className={"message-corner-ticks " + (readCount > 0 ? 'read' : deliveredCount > 0 ? 'delivered' : 'sent')}
@@ -387,6 +388,8 @@ function App() {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['','']);
   const [pollBusy, setPollBusy] = useState(false);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const chatFileRef = useRef(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -806,9 +809,9 @@ function App() {
     if (messagesError) { setToast(messagesError.message); return; }
     const rows = data || [];
     const hydratedRows = await Promise.all(rows.map(async row => {
-      if (row.message_type !== 'voice' || !row.audio_path) return row;
-      const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400);
-      return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null };
+      if (row.message_type === 'voice' && row.audio_path) { const { data: signed, error: signedError } = await supabase.storage.from('voice-messages').createSignedUrl(row.audio_path, 86400); return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null }; }
+      if (row.attachment_path) { const { data: signed } = await supabase.storage.from('chat-attachments').createSignedUrl(row.attachment_path, 86400); return { ...row, attachment_url: signed?.signedUrl || null }; }
+      return row;
     }));
     setMessages(hydratedRows);
     const { data: pinRows, error: pinError } = await supabase.from('pinned_messages').select('id,message_id,user_id,created_at');
@@ -1301,6 +1304,28 @@ function App() {
     } finally { setVoiceSending(false); }
   }
 
+
+  async function uploadChatAttachment(event) {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file || !myId) return;
+    const allowed = ['image/jpeg','image/png','image/webp','image/gif','application/pdf','text/plain'];
+    if (!allowed.includes(file.type) || file.size > 15 * 1024 * 1024) { setToast('Choose a JPG, PNG, WEBP, GIF, PDF or TXT file under 15 MB.'); return; }
+    setAttachmentBusy(true);
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-100) || 'attachment';
+    const path = myId + '/' + crypto.randomUUID() + '-' + safeName;
+    try {
+      const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path,file,{contentType:file.type,upsert:false});
+      if (uploadError) throw uploadError;
+      const { data: signed, error: signError } = await supabase.storage.from('chat-attachments').createSignedUrl(path,86400);
+      if (signError) throw signError;
+      const { data, error } = await supabase.from('messages').insert({user_id:myId,nickname:profile.nickname,body:'Attachment: '+safeName,avatar_url:profile.avatar||null,message_type:'text',attachment_path:path,attachment_name:safeName,attachment_mime:file.type,attachment_size:file.size}).select('*').single();
+      if (error) throw error;
+      setMessages(prev=>prev.some(row=>row.id===data.id)?prev:[...prev,{...data,attachment_url:signed.signedUrl}]);
+      nearBottom.current=true; setToast('Attachment sent.');
+    } catch (error) { await supabase.storage.from('chat-attachments').remove([path]); setToast(error.message||'Could not upload attachment.'); }
+    finally { setAttachmentBusy(false); }
+  }
+
   async function sendMessage(e) {
     e.preventDefault();
     if (!message.trim() || messageActionBusy) return;
@@ -1643,7 +1668,9 @@ function App() {
           <button type="button" className="voice-send-button" onClick={sendVoiceMessage} disabled={voiceSending} aria-label="Send voice message">{voiceSending ? 'Sending…' : <><Send size={17}/> Send</>}</button>
         </div>}
         <form className="composer glass" onSubmit={sendMessage}>
+          <input ref={chatFileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain" hidden onChange={uploadChatAttachment}/>
           <button type="button" className="emoji-btn" aria-label="Emoji" onMouseDown={e => e.preventDefault()} onClick={() => setPickerOpen(o => !o)} disabled={recording || !!voicePreview}><Smile size={20}/></button>
+          <button type="button" className="emoji-btn" aria-label="Attach file" title="Attach file" onClick={()=>chatFileRef.current?.click()} disabled={attachmentBusy || recording || !!voicePreview}><Plus size={19}/></button>
           <input ref={inputRef} value={message} onChange={e => handleMessageChange(e.target.value)} placeholder="Write a message… (@ to mention)" maxLength="2000" enterKeyHint="send" disabled={recording || !!voicePreview}/>
           <button type="button" className="voice-record-button" onClick={startVoiceRecording} disabled={recording || !!voicePreview || voiceSending} aria-label="Record voice message" title="Record voice message"><Mic size={19}/></button>
           <button className="send" disabled={!message.trim() || recording || !!voicePreview || messageActionBusy} aria-label={editingMessage ? 'Save edit' : 'Send message'} onMouseDown={e => e.preventDefault()}>{editingMessage ? <Check size={18}/> : <Send size={18}/>}</button>
