@@ -1842,6 +1842,7 @@ function App() {
           <h2>{profileCard?.display_name || profileCard?.nickname || 'Member'}</h2>
           <p className="public-profile-username">@{profileCard?.username || 'member'}</p>
           <span className={`public-profile-status ${!profileCard?.private && profileCard?.profile_visibility !== 'private' && onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'online' : ''}`}><i/>{!profileCard?.private && profileCard?.profile_visibility !== 'private' && onlineMembers.includes(profileCard?.user_id) && profileCard?.show_online_status !== false ? 'Online' : 'Offline'}</span>
+          {!profileCard?.private && profileCard?.profile_visibility !== 'private' && profileCard?.custom_status && profileCard.custom_status !== 'online' && <small style={{display:'block',marginTop:5,opacity:.8}}>{profileCard.custom_status.replaceAll('-',' ').toUpperCase()}{profileCard.custom_status_text ? ' · '+profileCard.custom_status_text : ''}</small>}
           {profileCard?.loading ? <p className="profile-private-note">Loading profile…</p> : profileCard?.private ? <p className="profile-private-note">This member keeps their profile private.</p> : <p className="public-profile-bio">{profileCard?.bio || 'No bio yet.'}</p>}
           <div className="public-profile-actions"><button onClick={() => setProfileCardOpen(false)}>Close</button></div>
         </div>
