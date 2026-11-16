@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     if (body.action === "load") {
       const [{ data: publicProfile, error: profileError }, { data: preferences, error: preferencesError }] = await Promise.all([
         admin.from("member_profiles")
-          .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at")
+          .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,custom_status,custom_status_text,updated_at")
           .eq("user_id", userId).maybeSingle(),
         admin.from("member_preferences")
           .select("data_saver,autoplay_media,hide_sensitive_content,push_notifications,theme_mode")
@@ -72,6 +72,8 @@ Deno.serve(async (req) => {
 
     const showOnlineStatus = typeof body.show_online_status === "boolean" ? body.show_online_status : true;
     const profileVisibility = body.profile_visibility === "private" ? "private" : "members";
+    const customStatus = ["online", "away", "busy", "do-not-disturb"].includes(body.custom_status) ? body.custom_status : "online";
+    const customStatusText = typeof body.custom_status_text === "string" ? body.custom_status_text.trim().slice(0, 60) : "";
     const dataSaver = typeof body.data_saver === "boolean" ? body.data_saver : false;
     const autoplayMedia = typeof body.autoplay_media === "boolean" ? body.autoplay_media : true;
     const hideSensitiveContent = typeof body.hide_sensitive_content === "boolean" ? body.hide_sensitive_content : true;
@@ -96,13 +98,15 @@ Deno.serve(async (req) => {
       bio,
       show_online_status: showOnlineStatus,
       profile_visibility: profileVisibility,
+      custom_status: customStatus,
+      custom_status_text: customStatusText,
       updated_at: new Date().toISOString()
     };
     if (avatarUrl !== undefined) profileRow.avatar_url = avatarUrl;
 
     const { data: saved, error: saveError } = await admin.from("member_profiles")
       .upsert(profileRow, { onConflict: "user_id" })
-      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,updated_at")
+      .select("user_id,username,display_name,bio,avatar_url,show_online_status,profile_visibility,custom_status,custom_status_text,updated_at")
       .single();
     if (saveError) {
       if (saveError.code === "23505") return json({ error: "That username is already taken." }, 409);
