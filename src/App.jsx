@@ -177,7 +177,7 @@ function observeMessageVisibility(root, node, callback) {
 const MessageRow = memo(function MessageRow({
   m, mine, grouped, newDay, label, dp, pattern, me, myId,
   reactions = [], onReact, reactionBusy, isOnline, onOpenProfile,
-  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible
+  receiptRows = [], onReply, onOpenInfo, onEdit, onDelete, onVisible, isPinned, onTogglePin
 }) {
   const mentioned = useMemo(() => !mine && !!me && new RegExp(`@${escapeRe(me)}(?![\\p{L}\\p{N}_])`, 'iu').test(m.body || ''), [mine, me, m.body]);
   const big = useMemo(() => m.message_type !== 'voice' && emojiOnly(m.body || ''), [m.message_type, m.body]);
@@ -302,6 +302,7 @@ const MessageRow = memo(function MessageRow({
           </div>
           <div className="message-hold-menu-divider"/>
           <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReply(m); }}><ReplyIcon size={15}/> Reply</button>
+          <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onTogglePin(m); }}><Info size={15}/> {isPinned ? 'Unpin message' : 'Pin message'}</button>
           {mine && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenInfo(m.id); }}><Info size={15}/> Message Info</button>}
           {mine && m.message_type === 'text' && <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(m); }}><Pencil size={15}/> Edit</button>}
           {mine && <button type="button" role="menuitem" className="danger" onClick={() => { setActionsOpen(false); onDelete(m); }}><Trash2 size={15}/> Delete</button>}
@@ -377,6 +378,9 @@ function App() {
   const [codes, setCodes] = useState([]);
   const [owner, setOwner] = useState(null); // { count, members } — only filled after the admin password is verified
   const [messages, setMessages] = useState([]);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -801,6 +805,9 @@ function App() {
       return { ...row, audio_url: signed?.signedUrl || null, audio_error: signedError?.message || null };
     }));
     setMessages(hydratedRows);
+    const { data: pinRows, error: pinError } = await supabase.from('pinned_messages').select('id,message_id,user_id,created_at');
+    if (pinError) setToast('Could not load pinned messages: ' + pinError.message);
+    else setPinnedMessages(pinRows || []);
     const ids = rows.map(row => row.id);
     if (ids.length) {
       const { data: reactionRows, error: reactionsError } = await supabase.from('message_reactions').select('*').in('message_id', ids);
@@ -809,7 +816,10 @@ function App() {
       await ensureDelivered(rows);
       const { data: receiptRows, error: receiptsError } = await supabase.from('message_receipts').select('*').in('message_id', ids);
       if (receiptsError) setToast('Could not load message receipts: ' + receiptsError.message);
-      else setReceipts(receiptRows || []);
+      else {
+        setReceipts(receiptRows || []);
+        setUnreadCount((receiptRows || []).filter(row => row.user_id === myId && !row.read_at && rows.some(m => String(m.id) === String(row.message_id) && m.user_id !== myId)).length);
+      }
     } else {
       setReactions([]);
       setReceipts([]);
@@ -835,6 +845,25 @@ function App() {
     } catch (err) { setToast(err.message || 'Could not save reaction.'); }
     finally { setReactionBusy(prev => ({ ...prev, [messageId]: false })); }
   }
+
+  async function togglePin(target) {
+    if (!target?.id || !myId) return;
+    const existing = pinnedMessages.find(row => String(row.message_id) === String(target.id) && row.user_id === myId);
+    try {
+      if (existing) {
+        const { error } = await supabase.from('pinned_messages').delete().eq('id', existing.id).eq('user_id', myId);
+        if (error) throw error;
+        setPinnedMessages(prev => prev.filter(row => row.id !== existing.id));
+        setToast('Message unpinned.');
+      } else {
+        const { data, error } = await supabase.from('pinned_messages').insert({ message_id: target.id, user_id: myId }).select('*').single();
+        if (error) throw error;
+        setPinnedMessages(prev => [...prev, data]);
+        setToast('Message pinned.');
+      }
+    } catch (error) { setToast(error.message || 'Could not update pinned message.'); }
+  }
+
   function beginReply(target) {
     setEditingMessage(null);
     setReplyingTo(target);
@@ -1538,7 +1567,9 @@ function App() {
           </div>
         </div>
         <div className="chat-head-actions">
+          {unreadCount > 0 && <span className="live-pill" title="Unread messages">{unreadCount} UNREAD</span>}
           <button type="button" className="icon-btn" title="Search messages" aria-label="Search messages" aria-expanded={messageSearchOpen} onClick={() => { setMessageSearchOpen(open => !open); setMessageSearchQuery(''); setMessageSearchIndex(0); }}><SearchIcon size={18}/></button>
+          <button type="button" className="icon-btn" title="Pinned messages" aria-label="Pinned messages" onClick={() => setPinsOpen(open => !open)}><Info size={17}/>{pinnedMessages.length > 0 && <span>{pinnedMessages.length}</span>}</button>
           <span className="live-pill"><i/> LIVE NOW</span>
         </div>
       </div>
@@ -1550,10 +1581,11 @@ function App() {
         <button type="button" className="icon-btn" title="Next result" aria-label="Next result" disabled={!messageSearchResults.length} onClick={() => moveMessageSearch(1)}><ChevronDown size={16}/></button>
         <button type="button" className="icon-btn" title="Close search" aria-label="Close search" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(''); }}><X size={17}/></button>
       </div>}
+      {pinsOpen && <div style={{padding:'10px 14px',borderBottom:'1px solid var(--line,rgba(140,140,160,.18))',background:'var(--surface,rgba(255,255,255,.5))'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><b style={{fontSize:12}}>Pinned messages</b><button type="button" className="icon-btn" onClick={()=>setPinsOpen(false)} aria-label="Close pinned messages"><X size={15}/></button></div>{pinnedMessages.length ? pinnedMessages.map(pin=>{const target=messages.find(row=>String(row.id)===String(pin.message_id));return <button key={pin.id} type="button" onClick={()=>{setPinsOpen(false);document.getElementById('message-'+pin.message_id)?.scrollIntoView({behavior:'smooth',block:'center'});}} style={{display:'block',width:'100%',textAlign:'left',padding:'7px 0',background:'transparent',border:0,color:'inherit',cursor:'pointer',font:'inherit',fontSize:12}}>{target ? (target.message_type==='voice'?'Voice message':target.body) : 'Pinned message (not loaded)'}</button>}) : <small>No pinned messages yet.</small>}</div>}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {messages.length === 0 ? <div className="empty"><div className="empty-icon"><MessageCircle size={26}/></div><h3>The room is yours.</h3><p>Start the conversation. Messages appear here in real time. Type @ to mention someone.</p></div> :
         messageSearchQuery.trim() && messageSearchResults.length === 0 ? <div className="empty"><div className="empty-icon"><SearchIcon size={26}/></div><h3>No messages found.</h3><p>Try another word, member name, or search term.</p></div> :
-        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
+        (messageSearchQuery.trim() ? messageSearchResults : rows).map(({ m, newDay, grouped, label }) => { const mine = m.user_id === myId; const displayMessage = memberProfiles[m.user_id]?.display_name ? { ...m, nickname: memberProfiles[m.user_id].display_name } : m; return <MessageRow key={m.id} m={displayMessage} mine={mine} grouped={grouped} newDay={newDay} label={label} dp={mine ? profile?.avatar : (memberProfiles[m.user_id]?.avatar_url || m.avatar_url)} pattern={mentionPattern} me={me} myId={myId} reactions={reactionsByMessage.get(String(m.id)) || []} onReact={toggleReaction} reactionBusy={!!reactionBusy[m.id]} isOnline={onlineMembers.includes(m.user_id)} onOpenProfile={openPublicProfile} receiptRows={(receiptsByMessage.get(String(m.id)) || []).filter(row => row.user_id !== m.user_id)} onVisible={markMessageRead} isPinned={pinnedMessages.some(pin => String(pin.message_id) === String(m.id))} onTogglePin={togglePin} onReply={beginReply} onOpenInfo={openMessageInfo} onEdit={beginEdit} onDelete={deleteMessage}/>; })}
         {typingUsers.length > 0 && <div role="status" aria-live="polite" aria-label={`${typingUsers.slice(0, 3).map(user => user.nickname).join(', ')} ${typingUsers.length === 1 ? 'is' : 'are'} typing`} style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 9, margin: '4px 12px 8px', padding: '7px 11px', borderRadius: 16, background: 'var(--surface, rgba(120,120,140,.12))', width: 'fit-content' }}>
           <span style={{ display: 'flex', gap: 4, alignItems: 'center', height: 12 }}>
             {[0, 1, 2].map(dot => <span key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--muted, #9aa4b8)', display: 'block', animation: 'typing-dot-bounce 1s infinite ease-in-out', animationDelay: `${dot * 0.16}s` }}/>)}
