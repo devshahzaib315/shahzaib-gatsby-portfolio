@@ -34,7 +34,7 @@ function Emoji({ char }) {
     alt={char}
     role="img"
     draggable="false"
-    loading="eager"
+    loading="lazy"
     decoding="async"
     onError={() => setStep(current => current + 1)}
   />;
